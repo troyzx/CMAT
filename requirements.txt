@@ -1,0 +1,13 @@
+numpy
+rebound
+scipy
+matplotlib
+pandas
+tqdm
+requests
+astroquery
+pytransit
+arviz
+celerite
+emcee
+corner
