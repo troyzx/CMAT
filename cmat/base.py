@@ -79,6 +79,7 @@ from pytransit.lpf.tesslpf import TESSLPF
 from pytransit.orbits import epoch
 from scipy.optimize import curve_fit
 from cmat.singlefit import SingleFit
+from tqdm.auto import tqdm
 
 PLANETURL = "https://exo.mast.stsci.edu/api/v0.1/exoplanets/"
 DVURL = "https://exo.mast.stsci.edu/api/v0.1/dvdata/tess/"
@@ -426,10 +427,10 @@ class Fitlpf:
         timea = self.lpf.timea
         fluxa = self.lpf.ofluxa
         fig, ax = plt.subplots(figsize=(10, 6), dpi=200)
-        plt.plot(timea, fluxa)
+        plt.plot(timea, fluxa, ".")
         return fig, ax
 
-    def fit_single(self, i, niter=100, npop=50, mcmc_repeats=4):
+    def fit_single(self, i, pbar, niter=100, npop=50, mcmc_repeats=4):
         """
         Fits a single transit light curve.
 
@@ -445,6 +446,7 @@ class Fitlpf:
         Returns:
             SingleFit: The fitted single transit light curve.
         """
+        pbar.set_description("Fitting single transits")
         single = SingleFit(
             self.planet_name + str(i) + "th",
             None,
@@ -465,8 +467,8 @@ class Fitlpf:
         single.set_prior("k2", "UP", 0.0, 0.2**2)
         # Uniform prior on the area ratio
         single.optimize_global(niter=niter, npop=npop)
-        single.sample_mcmc(2500, thin=25, repeats=mcmc_repeats)
-
+        single.sample_mcmc(2500, thin=25, repeats=mcmc_repeats, leave=False)
+        pbar.update(1)
         return single
 
     def fit_singles(self):
@@ -482,8 +484,13 @@ class Fitlpf:
         Returns:
             None
         """
-        self.fit_single_v = np.vectorize(self.fit_single)
-        self.singles = self.fit_single_v(np.arange(len(self.lpf.times)))
+        # self.fit_single_v = np.vectorize(self.fit_single)
+        # self.singles = self.fit_single_v(np.arange(len(self.lpf.times)))
+        with tqdm(total=len(np.arange(len(self.lpf.times))) + 1) as pbar:
+            # pbar.set_description("Fitting single transits: ")
+            self.singles = np.vectorize(self.fit_single)(
+                np.arange(len(self.lpf.times)), pbar
+            )
         self.post_samples = []
         self.tcs = []
         for single in self.singles:
