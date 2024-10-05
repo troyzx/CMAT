@@ -5,7 +5,7 @@ CMAT is a fast and efficient Python tool to constrain the upper mass of a hidden
 
 ## File Structure
 
-### 1. `CMAT/`
+### 1. `cmat/`
    - **Content**: The main program source code.
    - **Description**: This folder contains the core Python scripts responsible for reading photometric data, processing it, running the mass estimation algorithms, and generating results. The code is modular and can be adapted to different datasets and user needs.
 
