@@ -40,7 +40,7 @@ This will install the necessary components, allowing you to start analyzing TTV 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/CMAT.git
+   git clone https://github.com/troyzx/CMAT.git
    cd CMAT
    ```
 
