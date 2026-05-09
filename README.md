@@ -1,71 +1,95 @@
-# CMAT (Companion MAss from TTV modeling)
+# CMAT: Companion Mass from TTV Modeling
+
 [![DOI](https://zenodo.org/badge/777723832.svg)](https://zenodo.org/doi/10.5281/zenodo.13739646)
 
-CMAT is a fast and efficient Python tool to constrain the upper mass of a hidden companion in planetary systems using Transit Timing Variations (TTV) data. This package allows users to quickly derive mass constraints using a minimal computational setup.
+CMAT is a scientific Python project for constraining the upper mass of hidden planetary companions from transit timing variation (TTV) observations. In broader terms, it is a compact example of Bayesian inverse modeling for sparse, noisy time-series data using a physics-based forward simulator.
 
-## File Structure
+The current implementation fits TESS transit light curves, estimates per-transit center times with optimization and MCMC sampling, converts those estimates into TTV residuals, and evaluates grids of possible companion mass and period-ratio configurations with REBOUND N-body simulations. Candidate companions are rejected when simulated TTV amplitudes or goodness-of-fit statistics exceed the observed timing constraints; MEGNO simulations provide an additional dynamical-stability diagnostic.
 
-### 1. `cmat/`
-   - **Content**: The main program source code.
-   - **Description**: This folder contains the core Python scripts responsible for reading photometric data, processing it, running the mass estimation algorithms, and generating results. The code is modular and can be adapted to different datasets and user needs.
+## Project Scope
 
-### 2. `data/`
-   - **Content**: Example photometric datasets from TESS.
-   - **File Format**: `.fits`, `.csv`
-   - **Description**: These are sample data files demonstrating the format required for transit data input. The files contain time, flux and associated uncertainties, as well as additional orbital or planetary information.
+CMAT focuses on one astronomy use case:
 
-### 3. `example.ipynb`
-   - **Content**: Jupyter Notebook example.
-   - **Description**: This interactive notebook walks users through the steps of using CMAT. It demonstrates how to load the provided example data, configure analysis parameters, run the CMAT code, and visualize the results. It serves as a step-by-step guide to get started.
+- **Input:** TESS light curves, target metadata, and planetary system parameters.
+- **Latent quantity:** the mass of an unseen companion across a grid of orbital period ratios.
+- **Observation model:** transit timing residuals inferred from sparse photometric time series.
+- **Forward model:** N-body integrations that generate synthetic transit timing variations.
+- **Output:** upper companion-mass constraints and dynamical-stability maps.
 
-### 4. `requirements.txt`
-   - **Content**: Python dependencies.
-   - **Description**: This file lists all the Python packages required to run CMAT. Users can easily set up their environment by installing these dependencies using pip.
+This repository is research software. The code is useful as a worked scientific workflow and as a foundation for a future rebuild with stronger packaging, tests, reproducibility controls, and industry-facing examples.
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Repository Contents
+
+- `cmat/` - Python source code for TESS light-curve fitting, transit-center inference, TTV construction, REBOUND simulations, mass-limit estimation, and MEGNO mapping.
+- `data/WASP-44 b/` - example TESS and CSV data used by the included notebook.
+- `example.ipynb` - end-to-end example notebook for WASP-44 b.
+- `requirements.txt` - runtime dependencies.
+- `LICENSE` - GNU General Public License v3.0.
 
 ## Installation
 
-CMAT can be installed using pip:
+Install the published package:
 
 ```bash
 pip install CMAT-astro
 ```
 
-This will install the necessary components, allowing you to start analyzing TTV data.
+Or run from a local checkout:
 
-## How to Use
+```bash
+git clone https://github.com/troyzx/CMAT.git
+cd CMAT
+pip install -r requirements.txt
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/troyzx/CMAT.git
-   cd CMAT
-   ```
+CMAT is imported as:
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```python
+import cmat
+```
 
-3. Run the example Jupyter Notebook:
-   ```bash
-   jupyter notebook example.ipynb
-   ```
+## Example Notebook
 
-The notebook will guide you through the process of using CMAT, including data loading, parameter configuration, and results interpretation.
+Run the included notebook:
 
-## Example Data
+```bash
+jupyter notebook example.ipynb
+```
 
-Example datasets are provided in the `data/` folder to demonstrate the expected input format and analysis process. You can replace these datasets with your own photometric data in `.fits` or TTV data in `.csv` format.
+The notebook uses the provided WASP-44 b data to demonstrate target setup, TESS data access, transit fitting, TTV residual construction, companion-mass grid simulation, and MEGNO visualization.
 
-## Key Features
+## Workflow: TESS Light Curves to Upper Mass Constraints
 
-- **Fast Mass Estimation**: CMAT is optimized for fast calculations to derive mass constraints based on TTV data.
-- **Extensible**: The source code is modular and can be modified to fit specific research needs.
-- **Interactive**: The Jupyter notebook provides a hands-on example to guide users through using the tool.
+1. **Select a target.** Start with a known transiting planet and retrieve its system metadata, including stellar mass, planet mass, orbital period, radius, and reference transit time.
+2. **Acquire TESS photometry.** Use MAST/TESS products or the cached example FITS files under `data/`.
+3. **Fit the global light curve.** Build a TESS transit light-curve model with PyTransit and optimize the shared transit parameters.
+4. **Fit individual transits.** Fit each transit segment separately and sample the posterior distribution for the transit center time.
+5. **Construct the TTV series.** Convert posterior transit centers into epoch-indexed timing residuals and timing uncertainties.
+6. **Define the companion grid.** Choose period-ratio values `P2/P1` and companion masses `M2` to evaluate.
+7. **Run forward simulations.** Use REBOUND to simulate each candidate two-planet system and generate synthetic TTVs.
+8. **Score candidate companions.** Compare simulated and inferred TTVs with `chi^2` and RMS criteria to estimate critical mass curves.
+9. **Assess dynamical stability.** Run MEGNO calculations over the same grid and compare stability structure with the inferred mass limits.
+
+## Transferable Engineering Skills
+
+CMAT demonstrates engineering patterns that generalize beyond exoplanet research:
+
+- **Bayesian inverse modeling:** estimate latent physical quantities from indirect, noisy observations.
+- **Simulation-based inference:** use a forward simulator when closed-form likelihoods are limited or expensive.
+- **Uncertainty quantification:** propagate posterior timing uncertainty into downstream constraint calculations.
+- **Sparse time-series analysis:** infer signal structure from irregular, low-sample event timing data.
+- **Physics-based forward simulation:** evaluate hypotheses with a domain simulator rather than a purely statistical surrogate.
+- **Numerical workflow design:** combine optimization, MCMC sampling, grid search, multiprocessing, and diagnostic visualization.
+- **Scientific reproducibility:** connect raw observational data, model assumptions, derived residuals, and final constraints in a traceable notebook workflow.
+
+## Citation
+
+If you use CMAT, cite the Zenodo archive:
+
+- DOI: [10.5281/zenodo.13739646](https://doi.org/10.5281/zenodo.13739646)
+
+Use the Zenodo record for version-specific citation metadata.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
