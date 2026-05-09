@@ -72,7 +72,7 @@ Result: passed for all tracked Python modules.
 python -m unittest discover -s tests
 ```
 
-Result: passed 5 tests covering deterministic scoring helpers, first-rejected-mass extraction, and cached WASP-44 b data invariants. The scoring tests load `cmat/ttv_sim.py` directly to avoid the package-level PyTransit import boundary described below.
+Result in the active global environment: 5 tests passed and the TTV residual test skipped because `cmat.base` cannot import through the broken global PyTransit/Numba/llvmlite stack. Result in the constrained disposable environment: 6 tests passed, covering deterministic scoring helpers, TTV residual construction, first-rejected-mass extraction, and cached WASP-44 b data invariants. The scoring tests load `cmat/ttv_sim.py` directly to avoid the package-level PyTransit import boundary described below.
 
 Additional Stage 0 files:
 
@@ -111,7 +111,7 @@ Environment mitigation added after this finding:
 ## Known Risks Before Refactor
 
 - Before this branch, no tracked automated tests or CI configuration protected behavior.
-- The first Stage 0 tests cover deterministic scoring helpers and cached WASP-44 b data invariants; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
+- The first Stage 0 tests cover deterministic scoring helpers, TTV residual construction when the environment can import `cmat.base`, and cached WASP-44 b data invariants; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
 - Runtime dependencies are listed without version bounds in `requirements.txt`; `constraints.txt` is a temporary mitigation, not final package metadata.
 - There is no tracked `pyproject.toml`, `setup.cfg`, or `setup.py` packaging metadata in the repository state.
 - Importing `cmat` eagerly imports the light-curve stack, so lightweight use of `ttv_sim` is coupled to PyTransit availability.
@@ -125,7 +125,6 @@ Environment mitigation added after this finding:
 
 Before moving into structural refactoring:
 
-- Add deterministic tests for TTV residual construction once the environment/import path is stable.
 - Implement the reduced WASP-44 b benchmark configuration with expected artifact names and tolerances.
 - Decide supported Python versions and pin or bound high-risk scientific dependencies.
 - Record current limitations separately from rebuild tasks.

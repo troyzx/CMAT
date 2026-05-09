@@ -19,7 +19,7 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 ## Testing and Validation
 
-- Stage 0 tests currently protect deterministic scoring helpers and cached WASP-44 b data invariants.
+- Stage 0 tests currently protect deterministic scoring helpers, TTV residual construction in the constrained environment, and cached WASP-44 b data invariants.
 - The full transit-fitting workflow is not yet covered by automated tests.
 - REBOUND simulation behavior is not yet protected by a reduced deterministic benchmark.
 - MEGNO maps are not yet covered by automated regression checks.

@@ -89,7 +89,7 @@ env XDG_CACHE_HOME=/private/tmp/cmat-cache \
     python -m unittest discover -s tests
 ```
 
-Result: 5 tests passed.
+Result: 6 tests passed.
 
 ## Current Recommendation
 
