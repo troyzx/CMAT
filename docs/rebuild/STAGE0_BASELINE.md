@@ -77,6 +77,7 @@ Result: passed 5 tests covering deterministic scoring helpers, first-rejected-ma
 Additional Stage 0 files:
 
 - `docs/rebuild/CURRENT_LIMITATIONS.md` records known limitations separately from implementation tasks.
+- `docs/rebuild/ENVIRONMENT_BASELINE.md` records the current import failure and dependency-constraint mitigation.
 - `docs/rebuild/WASP44_REDUCED_BENCHMARK.md` defines the reduced WASP-44 b benchmark contract.
 
 ```bash
@@ -101,11 +102,16 @@ Observed local dependency versions:
 - rebound: 3.26.3
 - emcee: 3.1.4
 
+Environment mitigation added after this finding:
+
+- `constraints.txt` constrains the high-risk PyTransit/Numba/llvmlite stack.
+- Source checkout installation now uses `pip install -r requirements.txt -c constraints.txt`.
+
 ## Known Risks Before Refactor
 
 - Before this branch, no tracked automated tests or CI configuration protected behavior.
 - The first Stage 0 tests cover deterministic scoring helpers and cached WASP-44 b data invariants; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
-- Runtime dependencies are listed without version bounds.
+- Runtime dependencies are listed without version bounds in `requirements.txt`; `constraints.txt` is a temporary mitigation, not final package metadata.
 - There is no tracked `pyproject.toml`, `setup.cfg`, or `setup.py` packaging metadata in the repository state.
 - Importing `cmat` eagerly imports the light-curve stack, so lightweight use of `ttv_sim` is coupled to PyTransit availability.
 - External data access depends on ExoMAST and MAST availability.
@@ -118,7 +124,7 @@ Observed local dependency versions:
 
 Before moving into structural refactoring:
 
-- Add deterministic tests for TTV residual construction once that math is available without importing the full PyTransit stack.
+- Add deterministic tests for TTV residual construction once the environment/import path is stable.
 - Implement the reduced WASP-44 b benchmark configuration with expected artifact names and tolerances.
 - Decide supported Python versions and pin or bound high-risk scientific dependencies.
 - Record current limitations separately from rebuild tasks.

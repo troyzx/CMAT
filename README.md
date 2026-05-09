@@ -39,7 +39,7 @@ Or run from a local checkout:
 ```bash
 git clone https://github.com/troyzx/CMAT.git
 cd CMAT
-pip install -r requirements.txt
+pip install -r requirements.txt -c constraints.txt
 ```
 
 CMAT is imported as:
