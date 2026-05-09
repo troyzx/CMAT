@@ -106,6 +106,7 @@ Environment mitigation added after this finding:
 
 - `constraints.txt` constrains the high-risk PyTransit/Numba/llvmlite stack.
 - Source checkout installation now uses `pip install -r requirements.txt -c constraints.txt`.
+- A disposable constrained Python 3.11 environment successfully imported `cmat` when `XDG_CACHE_HOME` and `MPLCONFIGDIR` pointed to writable directories.
 
 ## Known Risks Before Refactor
 
