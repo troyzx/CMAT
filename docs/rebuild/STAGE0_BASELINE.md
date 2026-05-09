@@ -72,7 +72,13 @@ Result: passed for all tracked Python modules.
 python -m unittest discover -s tests
 ```
 
-Result: passed 2 deterministic scoring tests. The current tests load `cmat/ttv_sim.py` directly to avoid the package-level PyTransit import boundary described below.
+Result in the active global environment: 5 tests passed and the TTV residual test skipped because `cmat.base` cannot import through the broken global PyTransit/Numba/llvmlite stack. Result in the constrained disposable environment: 6 tests passed, covering deterministic scoring helpers, TTV residual construction, first-rejected-mass extraction, and cached WASP-44 b data invariants. The scoring tests load `cmat/ttv_sim.py` directly to avoid the package-level PyTransit import boundary described below.
+
+Additional Stage 0 files:
+
+- `docs/rebuild/CURRENT_LIMITATIONS.md` records known limitations separately from implementation tasks.
+- `docs/rebuild/ENVIRONMENT_BASELINE.md` records the current import failure and dependency-constraint mitigation.
+- `docs/rebuild/WASP44_REDUCED_BENCHMARK.md` defines the reduced WASP-44 b benchmark contract.
 
 ```bash
 python -c "import cmat; print(cmat.__all__)"
@@ -96,11 +102,17 @@ Observed local dependency versions:
 - rebound: 3.26.3
 - emcee: 3.1.4
 
+Environment mitigation added after this finding:
+
+- `constraints.txt` constrains the high-risk PyTransit/Numba/llvmlite stack.
+- Source checkout installation now uses `pip install -r requirements.txt -c constraints.txt`.
+- A disposable constrained Python 3.11 environment successfully imported `cmat` when `XDG_CACHE_HOME` and `MPLCONFIGDIR` pointed to writable directories.
+
 ## Known Risks Before Refactor
 
 - Before this branch, no tracked automated tests or CI configuration protected behavior.
-- The first Stage 0 tests cover only deterministic scoring helpers; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
-- Runtime dependencies are listed without version bounds.
+- The first Stage 0 tests cover deterministic scoring helpers, TTV residual construction when the environment can import `cmat.base`, and cached WASP-44 b data invariants; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
+- Runtime dependencies are listed without version bounds in `requirements.txt`; `constraints.txt` is a temporary mitigation, not final package metadata.
 - There is no tracked `pyproject.toml`, `setup.cfg`, or `setup.py` packaging metadata in the repository state.
 - Importing `cmat` eagerly imports the light-curve stack, so lightweight use of `ttv_sim` is coupled to PyTransit availability.
 - External data access depends on ExoMAST and MAST availability.
@@ -113,8 +125,6 @@ Observed local dependency versions:
 
 Before moving into structural refactoring:
 
-- Extend the minimal local test harness beyond scoring helpers.
-- Protect TTV residual calculations with deterministic tests.
-- Define one reduced WASP-44 b benchmark configuration with expected artifact names and tolerances.
+- Implement the reduced WASP-44 b benchmark configuration with expected artifact names and tolerances.
 - Decide supported Python versions and pin or bound high-risk scientific dependencies.
 - Record current limitations separately from rebuild tasks.
