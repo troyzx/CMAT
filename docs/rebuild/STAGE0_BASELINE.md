@@ -72,7 +72,12 @@ Result: passed for all tracked Python modules.
 python -m unittest discover -s tests
 ```
 
-Result: passed 2 deterministic scoring tests. The current tests load `cmat/ttv_sim.py` directly to avoid the package-level PyTransit import boundary described below.
+Result: passed 5 tests covering deterministic scoring helpers, first-rejected-mass extraction, and cached WASP-44 b data invariants. The scoring tests load `cmat/ttv_sim.py` directly to avoid the package-level PyTransit import boundary described below.
+
+Additional Stage 0 files:
+
+- `docs/rebuild/CURRENT_LIMITATIONS.md` records known limitations separately from implementation tasks.
+- `docs/rebuild/WASP44_REDUCED_BENCHMARK.md` defines the reduced WASP-44 b benchmark contract.
 
 ```bash
 python -c "import cmat; print(cmat.__all__)"
@@ -99,7 +104,7 @@ Observed local dependency versions:
 ## Known Risks Before Refactor
 
 - Before this branch, no tracked automated tests or CI configuration protected behavior.
-- The first Stage 0 tests cover only deterministic scoring helpers; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
+- The first Stage 0 tests cover deterministic scoring helpers and cached WASP-44 b data invariants; there is still no CI, and the tests do not yet validate the full TESS, MCMC, REBOUND-grid, or MEGNO workflow.
 - Runtime dependencies are listed without version bounds.
 - There is no tracked `pyproject.toml`, `setup.cfg`, or `setup.py` packaging metadata in the repository state.
 - Importing `cmat` eagerly imports the light-curve stack, so lightweight use of `ttv_sim` is coupled to PyTransit availability.
@@ -113,8 +118,7 @@ Observed local dependency versions:
 
 Before moving into structural refactoring:
 
-- Extend the minimal local test harness beyond scoring helpers.
-- Protect TTV residual calculations with deterministic tests.
-- Define one reduced WASP-44 b benchmark configuration with expected artifact names and tolerances.
+- Add deterministic tests for TTV residual construction once that math is available without importing the full PyTransit stack.
+- Implement the reduced WASP-44 b benchmark configuration with expected artifact names and tolerances.
 - Decide supported Python versions and pin or bound high-risk scientific dependencies.
 - Record current limitations separately from rebuild tasks.
