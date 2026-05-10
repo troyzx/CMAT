@@ -190,7 +190,7 @@ class ttv_sim:
         prop = self.prop
         ms = prop[0]["Ms"]
         mp1 = prop[0]["Mp"]
-        a1 = prop[0]["Ms"]
+        a1 = prop[0]["orbital_distance"]
         a2 = a1 * r ** (2 / 3)
 
         sim = rebound.Simulation()
