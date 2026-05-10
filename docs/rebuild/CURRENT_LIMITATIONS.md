@@ -4,16 +4,16 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 ## Environment and Packaging
 
-- The repository currently has no tracked `pyproject.toml`, `setup.cfg`, or `setup.py`; packaging metadata needs to be made explicit in Stage 1.
-- Dependencies are listed without version bounds in `requirements.txt`; `constraints.txt` provides a temporary rebuild-baseline guardrail for the high-risk import stack.
-- `import cmat` fails in the observed global Python 3.11.14 environment because the PyTransit import path reaches an incompatible `numba` / `llvmlite` initialization path; the constrained disposable environment fixes that dependency pair.
-- The current package import is eager: importing `cmat` imports the light-curve stack even when the user only needs `ttv_sim`.
+- The repository now has tracked `pyproject.toml` metadata; `requirements.txt` still needs a compatibility decision after downstream usage is understood.
+- `constraints.txt` provides a temporary rebuild-baseline guardrail for the high-risk import stack.
+- Accessing `cmat.Fitlpf` fails in the observed global Python 3.11.14 environment because the PyTransit import path reaches an incompatible `numba` / `llvmlite` initialization path; the constrained disposable environment fixes that dependency pair.
+- The package now lazy-loads top-level exports, so `import cmat` and `cmat.ttv_sim` no longer require the light-curve stack.
 - Local ignored build artifacts exist in the workspace (`build/`, `dist/`, egg-info), but they are not part of the tracked source baseline.
 
 ## Data and Reproducibility
 
 - The primary workflow is notebook-driven and does not yet save a formal provenance manifest.
-- MCMC settings, optimizer settings, random seeds, dependency versions, and grid definitions are not captured in a machine-readable run record.
+- Typed configuration objects and thin workflow adapters now represent target metadata, fitting controls, simulation grids, output paths, and random seeds; the full notebook workflow is not yet decomposed into reusable library steps or saved as a formal run record.
 - The example relies on external astronomy services for fresh metadata or downloads when cached data are not used.
 - The cached WASP-44 b data are useful for baseline tests, but they are not a general fixture strategy.
 
@@ -21,9 +21,10 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 - Stage 0 tests currently protect deterministic scoring helpers, TTV residual construction in the constrained environment, and cached WASP-44 b data invariants.
 - The full transit-fitting workflow is not yet covered by automated tests.
-- REBOUND simulation behavior is not yet protected by a reduced deterministic benchmark.
+- A reduced deterministic REBOUND transit-timing fixture now protects one minimal simulation path, but broader instability and grid-behavior coverage is still missing.
+- Notebook smoke execution is still missing; the current reduced plan is to reuse cached WASP-44 b data, skip remote download calls, and clamp the notebook path to minimal TTV simulation coverage instead of the production grid and MEGNO sweeps.
 - MEGNO maps are not yet covered by automated regression checks.
-- There is no CI configuration for tests, linting, or notebook smoke execution.
+- CI now covers constrained editable installs, `compileall`, and the `unittest` suite on Python 3.10 and 3.11, but notebook smoke execution and linting are still not automated.
 
 ## Platform and Runtime
 

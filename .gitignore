@@ -1,0 +1,21 @@
+# macOS and editor noise
+.DS_Store
+*.swp
+*.swo
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+CMAT_astro.egg-info/
+
+# Legacy local packaging file replaced by pyproject.toml
+setup.py

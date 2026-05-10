@@ -44,6 +44,8 @@ pip install -r requirements.txt -c constraints.txt
 
 The constraints file is not a final lockfile. It is a narrow guardrail until Stage 1 moves package metadata to `pyproject.toml`, defines supported Python versions, and establishes a tested dependency matrix.
 
+Stage 1 also changes the top-level package import to lazy-load exported objects. After that change, `import cmat` and `cmat.ttv_sim` no longer require PyTransit; `cmat.Fitlpf` still requires the constrained light-curve stack.
+
 ## Disposable Environment Validation
 
 A disposable Python 3.11 virtual environment was created under `/private/tmp/cmat-rebuild-env` and installed with:
@@ -96,5 +98,6 @@ Result: 6 tests passed.
 - Do not modify the global Anaconda environment as part of the rebuild.
 - Use a fresh virtual environment for validation.
 - Install source-checkout dependencies with `requirements.txt` plus `constraints.txt`.
+- For Stage 1 and later source checkouts, prefer editable package installation with `pip install -e . -c constraints.txt`.
 - Set `XDG_CACHE_HOME` and `MPLCONFIGDIR` to writable paths in sandboxed or restricted environments.
 - Treat any remaining import failures as Stage 1 packaging/environment issues before expanding notebook or end-to-end workflow tests.
