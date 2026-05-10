@@ -15,12 +15,14 @@ current scientific algorithms.
 - Exposed the configuration objects through lazy top-level `cmat` exports without importing the light-curve stack.
 - Added `cmat.workflow` adapters that create existing `Fitlpf` and `ttv_sim` objects from configuration objects.
 - Added a JSON-serializable workflow manifest helper for future provenance records.
+- Extracted TTV comparison helpers into `cmat.scoring` while preserving the legacy `cmat.ttv_sim` module-level API.
 
 ## Deliberate Non-Changes
 
 - Existing transit fitting, posterior extraction, TTV residual construction, REBOUND simulation, scoring, and plotting code paths are unchanged.
 - Existing default iteration counts and simulation defaults are preserved in the configuration objects but are not yet wired into `Fitlpf` or `ttv_sim`.
 - The workflow adapters delegate to existing classes; they do not alter fitting, posterior, TTV, scoring, or simulation internals.
+- Scoring helper extraction moves existing calculations into a dedicated module; the formulas and legacy import path are preserved.
 - Configuration serialization is limited to JSON-compatible dictionaries; no new YAML, TOML, or locking dependency is introduced.
 
 ## Integration Plan
@@ -32,4 +34,4 @@ current scientific algorithms.
 
 ## Validation
 
-New tests cover path normalization, parameter validation, simulation-grid parameter ordering, top-level lazy exports, workflow adapter construction, and JSON-serializable run configuration dictionaries.
+New tests cover path normalization, parameter validation, simulation-grid parameter ordering, top-level lazy exports, workflow adapter construction, scoring helper behavior, legacy scoring imports, and JSON-serializable run configuration dictionaries.

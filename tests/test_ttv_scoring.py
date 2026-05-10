@@ -1,4 +1,4 @@
-import importlib.util
+import importlib
 import os
 from pathlib import Path
 import tempfile
@@ -11,25 +11,16 @@ MPLCONFIGDIR = Path(tempfile.gettempdir()) / "cmat-test-mplconfig"
 MPLCONFIGDIR.mkdir(exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIGDIR))
 
-
-def load_ttv_sim_module():
-    module_path = Path(__file__).resolve().parents[1] / "cmat" / "ttv_sim.py"
-    spec = importlib.util.spec_from_file_location("ttv_sim_under_test", module_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+from cmat import scoring
+from cmat.ttv_sim import ttv_sim
 
 
 class TtvScoringTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.ttv_sim = load_ttv_sim_module()
-
     def test_get_rms_returns_root_mean_square(self):
         residuals = np.array([3.0, 4.0])
 
         self.assertAlmostEqual(
-            self.ttv_sim.get_rms(residuals),
+            scoring.get_rms(residuals),
             np.sqrt((3.0**2 + 4.0**2) / 2.0),
         )
 
@@ -40,9 +31,15 @@ class TtvScoringTests(unittest.TestCase):
         ttv_rebound = np.array([5.0, 1.0, 2.0, 3.0])
 
         self.assertAlmostEqual(
-            self.ttv_sim.get_chi2(ttv_rebound, epoch, ttv_mcmc, ttv_err),
+            scoring.get_chi2(ttv_rebound, epoch, ttv_mcmc, ttv_err),
             0.0,
         )
+
+    def test_legacy_scoring_functions_remain_on_ttv_module(self):
+        ttv_module = importlib.import_module("cmat.ttv_sim")
+
+        self.assertIs(ttv_module.get_rms, scoring.get_rms)
+        self.assertIs(ttv_module.get_chi2, scoring.get_chi2)
 
     def test_get_m_crit_returns_first_rejected_mass_per_period_ratio(self):
         prop = [
@@ -53,7 +50,7 @@ class TtvScoringTests(unittest.TestCase):
                 "Ms": 1.0,
             }
         ]
-        sim = self.ttv_sim.ttv_sim(
+        sim = ttv_sim(
             epochs=np.array([0, 1, 2]),
             ttv_mcmc=np.array([1.0, 1.0, 1.0]),
             ttv_err=np.ones(3),

@@ -18,7 +18,7 @@ class PackageImportTests(unittest.TestCase):
                 "RunConfig",
             ],
         )
-        self.assertTrue(callable(cmat.ttv_sim))
+        self.assertTrue(callable(cmat.__getattr__("ttv_sim")))
 
     def test_top_level_config_export_is_available(self):
         cmat = importlib.import_module("cmat")

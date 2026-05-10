@@ -13,7 +13,7 @@ This roadmap keeps the current scientific objective intact: constrain hidden com
 ## Stage 1: Packaging and Project Structure
 
 - Move packaging metadata to `pyproject.toml` with explicit Python version support and dependency bounds. _(Started in Stage 1 packaging branch.)_
-- Separate modules by responsibility: data access, light-curve fitting, posterior extraction, TTV construction, forward simulation, scoring, plotting, and examples.
+- Separate modules by responsibility: data access, light-curve fitting, posterior extraction, TTV construction, forward simulation, scoring, plotting, and examples. _(Started by extracting scoring helpers from forward simulation.)_
 - Add typed configuration objects for target metadata, fitting controls, simulation grids, and output paths. _(Started in Stage 1 project-structure slice.)_
 - Replace notebook-only workflow state with reusable library functions and optional command-line entry points. _(Started with configuration-to-workflow adapters; CLI deferred.)_
 - Add structured logging and deterministic random seed handling where supported by dependencies.
