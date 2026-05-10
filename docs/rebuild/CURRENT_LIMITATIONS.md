@@ -13,7 +13,7 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 ## Data and Reproducibility
 
 - The primary workflow is notebook-driven and does not yet save a formal provenance manifest.
-- Typed configuration objects now represent target metadata, fitting controls, simulation grids, output paths, and random seeds; existing workflow code does not yet consume them or save a formal run record.
+- Typed configuration objects and thin workflow adapters now represent target metadata, fitting controls, simulation grids, output paths, and random seeds; the full notebook workflow is not yet decomposed into reusable library steps or saved as a formal run record.
 - The example relies on external astronomy services for fresh metadata or downloads when cached data are not used.
 - The cached WASP-44 b data are useful for baseline tests, but they are not a general fixture strategy.
 
