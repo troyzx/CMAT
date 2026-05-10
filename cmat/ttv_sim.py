@@ -160,36 +160,28 @@ class ttv_sim:
         rms = get_rms_v(ttv_results)
         rms_crit = np.sqrt(np.mean(ttv_mcmc**2))
 
-        chi2[rms == 0] = None
-        rms[rms == 0] = None
-
         chi2_2d = np.array(chi2).reshape(len(mp2s), len(rs))
         rms_2d = np.array(rms).reshape(len(mp2s), len(rs))
+        valid_2d = rms_2d != 0
 
-        m_crit_chi2 = []
-        for r in rs:
-            r_idx = np.where(rs == r)
-            for mp2 in mp2s:
-                mp2_idx = np.where(mp2s == mp2)
-                if chi2_2d[mp2_idx, r_idx] < chi2_crit:
-                    pass
-                else:
-                    m_crit_chi2.append(mp2)
-                    break
+        def first_rejected_mass(score_2d, crit):
+            rejected_masses = []
+            for r_idx, _ in enumerate(rs):
+                for mp2_idx, mp2 in enumerate(mp2s):
+                    if not valid_2d[mp2_idx, r_idx]:
+                        continue
+                    if not np.isfinite(score_2d[mp2_idx, r_idx]):
+                        continue
+                    if score_2d[mp2_idx, r_idx] >= crit:
+                        rejected_masses.append(mp2)
+                        break
+            return np.array(rejected_masses)
 
-        m_crit_rms = []
-        for r in rs:
-            r_idx = np.where(rs == r)
-            for mp2 in mp2s:
-                mp2_idx = np.where(mp2s == mp2)
-                if rms_2d[mp2_idx, r_idx] < rms_crit:
-                    pass
-                else:
-                    m_crit_rms.append(mp2)
-                    break
+        m_crit_chi2 = first_rejected_mass(chi2_2d, chi2_crit)
+        m_crit_rms = first_rejected_mass(rms_2d, rms_crit)
 
-        self.m_crit_chi2 = np.array(m_crit_chi2)
-        self.m_crit_rms = np.array(m_crit_rms)
+        self.m_crit_chi2 = m_crit_chi2
+        self.m_crit_rms = m_crit_rms
 
         return self.m_crit_chi2, self.m_crit_rms
 

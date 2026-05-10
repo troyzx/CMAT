@@ -34,7 +34,8 @@ Current PR:
 
 - PR #5: `codex/industry-rebuild-stage-1-packaging` -> `dev/industry-rebuild`
 - URL: <https://github.com/troyzx/CMAT/pull/5>
-- Status at handoff: open draft, mergeable, pushed through commit `5f0cf51`.
+- Status at handoff: open draft, mergeable, and still targeting `dev/industry-rebuild`.
+- The branch now extends the original Stage 1 packaging/configuration foundation with early Stage 2 validation coverage and initial CI scaffolding.
 
 ## Completed Work
 
@@ -55,6 +56,11 @@ Open in PR #5:
 - Extracted TTV scoring helpers into `cmat.scoring` while preserving legacy imports from `cmat.ttv_sim`.
 - Added tests for package import behavior, configuration objects, workflow adapters, scoring behavior, and legacy scoring imports.
 - Added Stage 1 rebuild documentation.
+- Added regression coverage for epoch derivation and mass-threshold extraction edge cases.
+- Added a reduced deterministic REBOUND regression test.
+- Fixed `ttv_sim.get_m_crit` so zero-signal simulation rows are skipped instead of being counted as rejected masses.
+- Added initial GitHub Actions CI scaffolding for constrained editable installs, `pip check`, `compileall`, and `unittest` on Python 3.10 and 3.11.
+- Recorded the reduced notebook smoke-test plan in the existing rebuild docs.
 
 Stage 1 commits on the active branch:
 
@@ -62,6 +68,12 @@ Stage 1 commits on the active branch:
 - `ceb2870 refactor: add typed workflow configuration`
 - `f51759f refactor: add workflow configuration adapters`
 - `5f0cf51 refactor: extract ttv scoring helpers`
+
+Latest local additions after the original Stage 1 commit stack:
+
+- focused Stage 2 validation and REBOUND regression coverage
+- initial CI workflow scaffolding
+- updated rebuild roadmap, limitations, and handoff notes
 
 ## Relevant Files
 
@@ -74,33 +86,36 @@ Stage 1 commits on the active branch:
 - `cmat/workflow.py` - adapters from configuration objects to existing implementation.
 - `cmat/scoring.py` - extracted TTV scoring helpers.
 - `cmat/ttv_sim.py` - REBOUND forward simulation; still preserves legacy scoring imports.
+- `.github/workflows/ci.yml` - constrained editable-install CI on Python 3.10 and 3.11.
 - `docs/rebuild/CURRENT_LIMITATIONS.md` - known limitations and unresolved debt.
 - `docs/rebuild/ENVIRONMENT_BASELINE.md` - environment findings and install guidance.
 - `docs/rebuild/STAGE1_PACKAGING.md` - packaging validation notes.
 - `docs/rebuild/STAGE1_PROJECT_STRUCTURE.md` - configuration, workflow, and scoring split notes.
+- `docs/rebuild/HANDOFF.md` - updated branch, validation, and next-stage continuation notes.
 - `tests/` - baseline and Stage 1 regression tests.
+- `tests/test_ttv_rebound.py` - reduced deterministic REBOUND regression fixture.
 
 ## Validation Snapshot
 
-Validated on the Stage 1 branch after the latest commit:
+Validated on the Stage 1 branch after the latest local changes:
 
 ```bash
 git diff --check
 python -m compileall cmat
 MPLCONFIGDIR=/private/tmp/cmat-mplconfig \
 XDG_CACHE_HOME=/private/tmp/cmat-cache \
-/private/tmp/cmat-rebuild-env/bin/python -m unittest discover -v -s tests
+/private/tmp/cmat-rebuild-env/bin/python -m pip check
 MPLCONFIGDIR=/private/tmp/cmat-mplconfig \
 XDG_CACHE_HOME=/private/tmp/cmat-cache \
-python -m unittest discover -v -s tests
+/private/tmp/cmat-rebuild-env/bin/python -m unittest discover -v -s tests
 ```
 
 Results:
 
 - `git diff --check`: passed.
 - `python -m compileall cmat`: passed.
-- Constrained disposable environment: 21 tests passed.
-- Existing global environment: 20 tests passed, 1 skipped due the known PyTransit/Numba/llvmlite mismatch.
+- Constrained disposable environment: `pip check` passed and 25 tests passed.
+- Existing global environment still has the known PyTransit/Numba/llvmlite mismatch; treat the constrained environment as authoritative unless that path also regresses.
 
 Earlier Stage 1 packaging validation also passed:
 
@@ -185,14 +200,12 @@ These are not part of the tracked rebuild baseline.
 2. Decide whether Stage 1 should add a small seed/logging utility before marking the PR ready.
 3. Merge PR #5 into `dev/industry-rebuild` only after review.
 4. Create the next branch from `dev/industry-rebuild`, likely `codex/industry-rebuild-stage-2-validation`.
-5. Stage 2 should focus on validation and tests:
-   - unit conversion tests;
-   - epoch calculation tests;
-   - additional TTV residual tests;
-   - reduced deterministic REBOUND simulation tests;
-   - mass-threshold extraction edge cases;
-   - notebook smoke-test plan.
-6. After Stage 2, move into documentation/examples and only then larger inference/performance refactors.
+5. Continue Stage 2 from the updated baseline:
+   - add small synthetic-system tests with injected timing offsets and known recovery expectations;
+   - convert the notebook smoke-test plan into an automated reduced execution path;
+   - add MEGNO regression coverage or a reduced deterministic guardrail;
+   - expand CI from constrained unit tests into notebook smoke execution and linting if the dependency story stays stable.
+6. After the remaining Stage 2 work is in place, move into documentation/examples and only then larger inference/performance refactors.
 
 ## Acceptance Criteria For The Next Agent
 
@@ -200,6 +213,7 @@ These are not part of the tracked rebuild baseline.
 - New work targets `dev/industry-rebuild`, not `main`.
 - The constrained environment remains the authoritative validation environment.
 - Existing tests pass before pushing.
+- The constrained CI workflow is treated as the automated baseline, while notebook smoke execution remains planned but not yet automated.
 - Any source refactor preserves legacy behavior or adds regression tests that justify the change.
 - The old stash remains untouched unless explicitly requested.
 

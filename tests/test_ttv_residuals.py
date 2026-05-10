@@ -12,6 +12,26 @@ class TtvResidualTests(unittest.TestCase):
         except Exception as exc:
             raise unittest.SkipTest(f"cmat.base import is unavailable: {exc}")
 
+    class _FakeSeries:
+        def __init__(self, mean_value, std_value):
+            self._mean_value = mean_value
+            self._std_value = std_value
+
+        def mean(self):
+            return self._mean_value
+
+        def std(self):
+            return self._std_value
+
+    class _FakeSingle:
+        def __init__(self, tc_mean, tc_std):
+            self._posterior = {
+                "tc": TtvResidualTests._FakeSeries(tc_mean, tc_std),
+            }
+
+        def posterior_samples(self):
+            return self._posterior
+
     def test_calculate_ttv_removes_linear_ephemeris_and_centers_residuals(self):
         fit = self.base.Fitlpf.__new__(self.base.Fitlpf)
         epochs = np.array([5, 6, 7, 8])
@@ -36,3 +56,25 @@ class TtvResidualTests(unittest.TestCase):
         np.testing.assert_allclose(fit.ttv_mcmc_raw, expected_ttv, atol=1e-8)
         np.testing.assert_allclose(fit.ttv_mcmc, expected_ttv, atol=1e-8)
         np.testing.assert_allclose(fit.ttv_err, expected_ttv_err, atol=1e-8)
+
+    def test_get_posterior_samples_derives_epochs_from_zero_epoch_and_period(self):
+        fit = self.base.Fitlpf.__new__(self.base.Fitlpf)
+        fit.zero_epoch = self.base.ufloat(100.0, 1e-3)
+        fit.period = self.base.ufloat(2.0, 1e-4)
+        fit.singles = [
+            self._FakeSingle(110.0, 0.01),
+            self._FakeSingle(112.0, 0.02),
+            self._FakeSingle(114.0, 0.03),
+        ]
+
+        fit.get_posterior_samples()
+
+        np.testing.assert_array_equal(fit.epochs, np.array([5, 6, 7]))
+        np.testing.assert_allclose(
+            [tc.n for tc in fit.tcs],
+            np.array([110.0, 112.0, 114.0]),
+        )
+        np.testing.assert_allclose(
+            [tc.s for tc in fit.tcs],
+            np.array([0.01, 0.02, 0.03]),
+        )

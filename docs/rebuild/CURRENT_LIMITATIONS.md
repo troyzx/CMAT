@@ -21,9 +21,10 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 - Stage 0 tests currently protect deterministic scoring helpers, TTV residual construction in the constrained environment, and cached WASP-44 b data invariants.
 - The full transit-fitting workflow is not yet covered by automated tests.
-- REBOUND simulation behavior is not yet protected by a reduced deterministic benchmark.
+- A reduced deterministic REBOUND transit-timing fixture now protects one minimal simulation path, but broader instability and grid-behavior coverage is still missing.
+- Notebook smoke execution is still missing; the current reduced plan is to reuse cached WASP-44 b data, skip remote download calls, and clamp the notebook path to minimal TTV simulation coverage instead of the production grid and MEGNO sweeps.
 - MEGNO maps are not yet covered by automated regression checks.
-- There is no CI configuration for tests, linting, or notebook smoke execution.
+- CI now covers constrained editable installs, `compileall`, and the `unittest` suite on Python 3.10 and 3.11, but notebook smoke execution and linting are still not automated.
 
 ## Platform and Runtime
 
