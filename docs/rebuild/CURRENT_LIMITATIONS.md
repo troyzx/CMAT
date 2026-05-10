@@ -6,8 +6,8 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 - The repository currently has no tracked `pyproject.toml`, `setup.cfg`, or `setup.py`; packaging metadata needs to be made explicit in Stage 1.
 - Dependencies are listed without version bounds in `requirements.txt`; `constraints.txt` provides a temporary rebuild-baseline guardrail for the high-risk import stack.
-- `import cmat` fails in the observed global Python 3.11.14 environment because the PyTransit import path reaches an incompatible `numba` / `llvmlite` initialization path; the constrained disposable environment fixes that dependency pair.
-- The current package import is eager: importing `cmat` imports the light-curve stack even when the user only needs `ttv_sim`.
+- Accessing `cmat.Fitlpf` fails in the observed global Python 3.11.14 environment because the PyTransit import path reaches an incompatible `numba` / `llvmlite` initialization path; the constrained disposable environment fixes that dependency pair.
+- The package now lazy-loads top-level exports, so `import cmat` and `cmat.ttv_sim` no longer require the light-curve stack.
 - Local ignored build artifacts exist in the workspace (`build/`, `dist/`, egg-info), but they are not part of the tracked source baseline.
 
 ## Data and Reproducibility

@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "CMAT-astro"
+version = "0.0.1"
+description = "Companion mass constraints from transit timing variation modeling"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+license = { text = "GPL-3.0-only" }
+authors = [
+    { name = "Zhang Zixin", email = "troyzx@icloud.com" },
+]
+keywords = [
+    "astronomy",
+    "exoplanets",
+    "transit timing variations",
+    "Bayesian inference",
+    "simulation-based inference",
+    "uncertainty quantification",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=1.24,<2.3",
+    "scipy>=1.15,<1.16",
+    "matplotlib>=3.7,<4",
+    "pandas>=2,<4",
+    "tqdm>=4.60,<5",
+    "requests>=2.31,<3",
+    "astroquery>=0.4.6,<0.5",
+    "pytransit==2.6.14",
+    "arviz>=0.16,<0.24",
+    "celerite>=0.4,<0.5",
+    "emcee==3.1.4",
+    "corner>=2.2,<3",
+    "rebound==3.26.3",
+    "uncertainties>=3,<4",
+    "numba==0.61.2",
+    "llvmlite>=0.44,<0.45",
+]
+
+[project.urls]
+Homepage = "https://github.com/troyzx/CMAT"
+Repository = "https://github.com/troyzx/CMAT"
+DOI = "https://doi.org/10.5281/zenodo.13739646"
+
+[tool.setuptools.packages.find]
+include = ["cmat*"]
