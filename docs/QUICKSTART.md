@@ -78,20 +78,24 @@ The notebook remains the full narrative example. It is heavier than the reduced 
 
 ## Synthetic example without remote data
 
-For a smaller self-contained forward-simulation example, run:
+For a smaller self-contained forward-simulation example, use either the script or the lightweight notebook:
 
 ```bash
 python examples/synthetic_ttv_quickstart.py
 ```
 
-This script:
+```bash
+jupyter notebook examples/synthetic_ttv_quickstart.ipynb
+```
 
-- defines a small synthetic TTV series
-- runs a reduced companion grid
-- computes reduced mass-threshold outputs
-- evaluates one reduced MEGNO point
+Both artifacts:
 
-It is intentionally smaller than `example.ipynb` and does not require remote TESS access.
+- define a small synthetic TTV series
+- run a reduced companion grid
+- compute reduced mass-threshold outputs
+- evaluate one reduced MEGNO point
+
+The script is the fastest non-notebook entry point. The notebook is the lightest interactive notebook path and is intentionally smaller than `example.ipynb`.
 
 ## What the quick start does not cover
 

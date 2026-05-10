@@ -11,4 +11,7 @@ CMAT's user-facing documentation is split into focused entry points:
 
 The rebuild-specific engineering notes remain under [`docs/rebuild/`](rebuild/).
 
-For a small self-contained example script, see [`examples/synthetic_ttv_quickstart.py`](../examples/synthetic_ttv_quickstart.py).
+For small self-contained examples, see:
+
+- [`examples/synthetic_ttv_quickstart.py`](../examples/synthetic_ttv_quickstart.py)
+- [`examples/synthetic_ttv_quickstart.ipynb`](../examples/synthetic_ttv_quickstart.ipynb)
