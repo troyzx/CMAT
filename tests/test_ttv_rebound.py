@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import importlib
 
 import numpy as np
 
@@ -15,6 +16,77 @@ from cmat.ttv_sim import ttv_sim
 
 
 class TtvReboundTests(unittest.TestCase):
+    def test_calculate_rebound_applies_mass_and_radius_unit_conversions(self):
+        prop = [
+            {
+                "orbital_distance": 0.055,
+                "orbital_period": 4.0,
+                "Mp": 1.2,
+                "Ms": 0.95,
+                "Rs": 0.93,
+                "Rp": 1.14,
+            }
+        ]
+        sim = ttv_sim(
+            epochs=np.array([0, 1]),
+            ttv_mcmc=np.array([0.0, 0.0]),
+            ttv_err=np.ones(2),
+            rs=np.array([1.5]),
+            mp2s=np.array([10.0]),
+            prop=prop,
+        )
+        ttv_module = importlib.import_module("cmat.ttv_sim")
+        created = []
+
+        class FakeSimulation:
+            def __init__(self):
+                self.ri_whfast = type("WHFast", (), {"safe_mode": None})()
+                self.t = 0.0
+                self.particles = [
+                    type("Particle", (), {"x": 0.0, "y": 0.0, "P": 1.0})()
+                ]
+                self.add_calls = []
+                created.append(self)
+
+            def add(self, **kwargs):
+                self.add_calls.append(kwargs)
+                self.particles.append(
+                    type(
+                        "Particle",
+                        (),
+                        {"x": 0.0, "y": 0.0, "P": kwargs.get("a", 1.0)},
+                    )()
+                )
+
+            def move_to_com(self):
+                return None
+
+            def integrate(self, *_args, **_kwargs):
+                raise ttv_module.rebound.Escape
+
+        with patch("cmat.ttv_sim.rebound.Simulation", side_effect=FakeSimulation):
+            ttv_rebound = sim.calculate_rebound((1.5, 10.0))
+
+        fake = created[-1]
+
+        self.assertEqual(ttv_rebound.shape, (2,))
+        self.assertAlmostEqual(
+            fake.add_calls[0]["r"],
+            prop[0]["Rs"] * ttv_module.rs_to_AU,
+        )
+        self.assertAlmostEqual(
+            fake.add_calls[1]["m"],
+            prop[0]["Mp"] * ttv_module.mj_to_ms,
+        )
+        self.assertAlmostEqual(
+            fake.add_calls[1]["r"],
+            prop[0]["Rp"] * ttv_module.rj_to_rs * ttv_module.rs_to_AU,
+        )
+        self.assertAlmostEqual(
+            fake.add_calls[2]["m"],
+            10.0 * ttv_module.me_to_ms,
+        )
+
     def test_simulation_m_uses_orbital_distance_for_megno_setup(self):
         prop = [
             {
