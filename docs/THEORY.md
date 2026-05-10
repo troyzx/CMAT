@@ -34,3 +34,28 @@ Stage 2 validation now includes inject-recovery tests for these scoring paths. A
 ## Stability interpretation
 
 MEGNO is used as a dynamical-stability diagnostic alongside the TTV rejection surface. A low-mass candidate that matches the timing data may still be dynamically implausible if the corresponding MEGNO region is strongly unstable.
+
+## Interpreting outputs
+
+### Mass-limit curves
+
+The critical-mass output is best read as a rejection boundary, not a full posterior over all unseen companions. A lower critical mass at a given period ratio means the observed timing data rule out smaller companions there.
+
+### MEGNO maps
+
+MEGNO is a stability diagnostic, not a direct fit-quality score. In practice:
+
+- a region can be rejected by TTV mismatch even if it is dynamically stable
+- a region can look compatible in TTV space but still be dynamically unstable
+
+The most interesting regions are usually the ones that remain both observationally viable and dynamically plausible.
+
+### Observational caveats
+
+Current rejection boundaries still depend on:
+
+- the chosen simulation grid
+- the current `chi^2` and RMS scoring rules
+- the finite set of measured transit times and their uncertainties
+
+That is why the Stage 2 rebuild adds inject-recovery checks before any scoring backend is replaced.

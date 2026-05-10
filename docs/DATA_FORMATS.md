@@ -25,6 +25,12 @@ Current columns:
 
 This file is the lightest cached input for the reduced notebook smoke path.
 
+Typical workflow use:
+
+- `epochs` indexes the observed transit events
+- `ttv_mcmc` provides the residual series used for TTV comparison
+- `ttv_err` provides the timing uncertainty used by the current `chi^2` scoring path
+
 ## `prop_data.csv`
 
 This cached table contains target and system metadata used by the notebook and forward simulation, including:
@@ -43,6 +49,12 @@ The reduced notebook smoke path currently reads:
 - `Rs`
 - `Rp`
 
+These fields are enough to instantiate the current `ttv_sim` forward model on cached data.
+
 ## FITS products
 
 The cached FITS files under `mastDownload/TESS/` are the notebook's example TESS products. They remain part of the narrative workflow, but the reduced validation path intentionally avoids requiring a full transit-fitting rerun on them.
+
+## Stability note
+
+The current data-format coverage is intentionally pragmatic rather than exhaustive. The rebuild still needs a more formal schema description for the notebook-era FITS inputs and for any future saved run manifests.
