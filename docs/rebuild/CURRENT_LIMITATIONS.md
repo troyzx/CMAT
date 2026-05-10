@@ -4,8 +4,8 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 ## Environment and Packaging
 
-- The repository currently has no tracked `pyproject.toml`, `setup.cfg`, or `setup.py`; packaging metadata needs to be made explicit in Stage 1.
-- Dependencies are listed without version bounds in `requirements.txt`; `constraints.txt` provides a temporary rebuild-baseline guardrail for the high-risk import stack.
+- The repository now has tracked `pyproject.toml` metadata; `requirements.txt` still needs a compatibility decision after downstream usage is understood.
+- `constraints.txt` provides a temporary rebuild-baseline guardrail for the high-risk import stack.
 - Accessing `cmat.Fitlpf` fails in the observed global Python 3.11.14 environment because the PyTransit import path reaches an incompatible `numba` / `llvmlite` initialization path; the constrained disposable environment fixes that dependency pair.
 - The package now lazy-loads top-level exports, so `import cmat` and `cmat.ttv_sim` no longer require the light-curve stack.
 - Local ignored build artifacts exist in the workspace (`build/`, `dist/`, egg-info), but they are not part of the tracked source baseline.
@@ -13,7 +13,7 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 ## Data and Reproducibility
 
 - The primary workflow is notebook-driven and does not yet save a formal provenance manifest.
-- MCMC settings, optimizer settings, random seeds, dependency versions, and grid definitions are not captured in a machine-readable run record.
+- Typed configuration objects now represent target metadata, fitting controls, simulation grids, output paths, and random seeds; existing workflow code does not yet consume them or save a formal run record.
 - The example relies on external astronomy services for fresh metadata or downloads when cached data are not used.
 - The cached WASP-44 b data are useful for baseline tests, but they are not a general fixture strategy.
 
