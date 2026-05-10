@@ -22,9 +22,20 @@ This repository is research software. The code is useful as a worked scientific 
 
 - `cmat/` - Python source code for TESS light-curve fitting, transit-center inference, TTV construction, REBOUND simulations, mass-limit estimation, and MEGNO mapping.
 - `data/WASP-44 b/` - example TESS and CSV data used by the included notebook.
+- `docs/` - user-facing installation, quick-start, theory, API, data-format, and troubleshooting guides.
 - `example.ipynb` - end-to-end example notebook for WASP-44 b.
 - `requirements.txt` - runtime dependencies.
 - `LICENSE` - GNU General Public License v3.0.
+
+## Documentation
+
+- [Installation](docs/INSTALLATION.md)
+- [Quick Start](docs/QUICKSTART.md)
+- [Theory](docs/THEORY.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [Data Formats](docs/DATA_FORMATS.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Rebuild Notes](docs/rebuild/)
 
 ## Installation
 
