@@ -76,6 +76,23 @@ jupyter notebook example.ipynb
 
 The notebook remains the full narrative example. It is heavier than the reduced smoke path and still includes steps that are intentionally outside the smallest validation loop.
 
+## Synthetic example without remote data
+
+For a smaller self-contained forward-simulation example, run:
+
+```bash
+python examples/synthetic_ttv_quickstart.py
+```
+
+This script:
+
+- defines a small synthetic TTV series
+- runs a reduced companion grid
+- computes reduced mass-threshold outputs
+- evaluates one reduced MEGNO point
+
+It is intentionally smaller than `example.ipynb` and does not require remote TESS access.
+
 ## What the quick start does not cover
 
 The reduced path intentionally skips:
