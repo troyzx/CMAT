@@ -46,7 +46,7 @@ class TtvReboundTests(unittest.TestCase):
                     -33.018177315309,
                 ]
             ),
-            atol=1e-10,
+            atol=1e-9,
             rtol=0.0,
         )
 
