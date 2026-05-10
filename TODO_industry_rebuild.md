@@ -24,7 +24,7 @@ This roadmap keeps the current scientific objective intact: constrain hidden com
 - Add small synthetic-system tests with known injected timing offsets and known recovery expectations.
 - Use inject-recovery comparisons to evaluate future scoring backends before replacing the current `chi^2` / RMS baseline.
 - Add regression tests for REBOUND simulation outputs using short, deterministic runs.
-- Add notebook smoke tests that execute a reduced example without requiring a full production grid. Use the cached WASP-44 b data path, skip the remote download cell, reduce the TTV simulation to a minimal deterministic fixture, and leave full-grid and MEGNO sweeps to slower manual validation until a smaller example exists.
+- Add notebook smoke tests that execute a reduced example without requiring a full production grid. _(Started with a cached WASP-44 b forward-simulation slice that skips the remote download and transit-fitting cells, runs a reduced TTV grid, and checks one reduced MEGNO point; full-grid and full-notebook execution are still deferred.)_
 - Configure continuous integration for linting, tests, and notebook execution on a supported Python matrix. _(Started with constrained editable-install validation, `compileall`, and `unittest` on Python 3.10/3.11; notebook smoke execution is still deferred.)_
 
 ## Stage 3: Documentation and Examples
