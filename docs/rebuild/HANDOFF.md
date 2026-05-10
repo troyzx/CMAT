@@ -204,8 +204,10 @@ These are not part of the tracked rebuild baseline.
    - add small synthetic-system tests with injected timing offsets and known recovery expectations;
    - convert the notebook smoke-test plan into an automated reduced execution path;
    - add MEGNO regression coverage or a reduced deterministic guardrail;
-   - expand CI from constrained unit tests into notebook smoke execution and linting if the dependency story stays stable.
-6. After the remaining Stage 2 work is in place, move into documentation/examples and only then larger inference/performance refactors.
+   - expand CI from constrained unit tests into notebook smoke execution and linting if the dependency story stays stable;
+   - use inject-recovery to compare future scoring backends before changing the current `chi^2` / RMS baseline.
+6. Keep likelihood-based scoring out of the current validation stage. A single-target Bayesian scoring backend belongs to Stage 4, where priors, nuisance parameters, and uncertainty propagation are made explicit.
+7. After the remaining Stage 2 work is in place, move into documentation/examples and only then larger inference/performance refactors.
 
 ## Acceptance Criteria For The Next Agent
 
