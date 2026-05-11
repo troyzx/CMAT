@@ -22,9 +22,21 @@ This repository is research software. The code is useful as a worked scientific 
 
 - `cmat/` - Python source code for TESS light-curve fitting, transit-center inference, TTV construction, REBOUND simulations, mass-limit estimation, and MEGNO mapping.
 - `data/WASP-44 b/` - example TESS and CSV data used by the included notebook.
+- `docs/` - user-facing installation, quick-start, theory, API, data-format, and troubleshooting guides.
+- `examples/` - small self-contained example scripts and notebooks that avoid the full notebook workflow.
 - `example.ipynb` - end-to-end example notebook for WASP-44 b.
 - `requirements.txt` - runtime dependencies.
 - `LICENSE` - GNU General Public License v3.0.
+
+## Documentation
+
+- [Installation](docs/INSTALLATION.md)
+- [Quick Start](docs/QUICKSTART.md)
+- [Theory](docs/THEORY.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [Data Formats](docs/DATA_FORMATS.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Rebuild Notes](docs/rebuild/)
 
 ## Installation
 
@@ -50,13 +62,19 @@ import cmat
 
 ## Example Notebook
 
-Run the included notebook:
+Run the included full notebook:
 
 ```bash
 jupyter notebook example.ipynb
 ```
 
 The notebook uses the provided WASP-44 b data to demonstrate target setup, TESS data access, transit fitting, TTV residual construction, companion-mass grid simulation, and MEGNO visualization.
+
+For a lighter interactive example that avoids remote data access and transit fitting, run:
+
+```bash
+jupyter notebook examples/synthetic_ttv_quickstart.ipynb
+```
 
 ## Workflow: TESS Light Curves to Upper Mass Constraints
 

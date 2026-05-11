@@ -30,7 +30,7 @@ This roadmap keeps the current scientific objective intact: constrain hidden com
 ## Stage 3: Documentation and Examples
 
 - Split the documentation into installation, quick start, theory, API reference, data formats, and troubleshooting.
-- Keep `example.ipynb` as the narrative astronomy workflow and add a smaller quick-start notebook for fast validation.
+- Keep `example.ipynb` as the narrative astronomy workflow and add a smaller quick-start notebook for fast validation. _(Started with `examples/synthetic_ttv_quickstart.ipynb`.)_
 - Add a synthetic-data example that does not require remote TESS queries.
 - Document input schemas for FITS products, transit-center CSV files, and planetary metadata.
 - Add interpretation guidance for mass-limit curves, MEGNO maps, unstable configurations, and observational caveats.
