@@ -15,3 +15,4 @@ For small self-contained examples, see:
 
 - [`examples/synthetic_ttv_quickstart.py`](../examples/synthetic_ttv_quickstart.py)
 - [`examples/synthetic_ttv_quickstart.ipynb`](../examples/synthetic_ttv_quickstart.ipynb)
+- [`examples/custom_scoring_backend.py`](../examples/custom_scoring_backend.py)

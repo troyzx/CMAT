@@ -204,6 +204,48 @@ The `cmat.scoring` module now contains both the current comparison helpers and t
 | `Chi2AndRmsMassThresholdScorer` | Default backend that preserves the current legacy `chi^2` / RMS behavior |
 | `supported_mass_threshold_backends()` | Return the backend names currently accepted by `ScoringConfig.backend` |
 
+Minimal custom-backend example:
+
+```python
+import numpy as np
+
+from cmat import TTVSimulation
+from cmat.scoring import MassThresholds
+
+
+class FixedDemoScorer:
+    def critical_masses(
+        self,
+        *,
+        ttv_results,
+        epoch,
+        ttv_mcmc,
+        ttv_err,
+        period_ratios,
+        companion_masses,
+    ) -> MassThresholds:
+        return MassThresholds(
+            chi2=np.full(len(period_ratios), 12.0),
+            rms=np.full(len(period_ratios), 18.0),
+            backend="fixed-demo",
+        )
+
+
+simulation = TTVSimulation(
+    epochs=np.array([0, 1, 2]),
+    ttv_mcmc=np.array([0.0, 1.0, 0.0]),
+    ttv_err=np.ones(3),
+    rs=np.array([1.5, 2.0]),
+    mp2s=np.array([10.0, 20.0]),
+    prop=[{"orbital_distance": 1.0, "orbital_period": 1.0, "Mp": 1.0, "Ms": 1.0, "Rs": 1.0, "Rp": 1.0}],
+    scoring_backend=FixedDemoScorer(),
+)
+simulation.ttv_results = [np.zeros(4)] * 4
+summary = simulation.get_critical_masses(), simulation.get_scoring_summary()
+```
+
+For a runnable version, see [`examples/custom_scoring_backend.py`](../examples/custom_scoring_backend.py).
+
 ## Workflow classes
 
 The classes below are still rebuild-era APIs. The preferred public names are clearer aliases layered on top of the same current implementations.
