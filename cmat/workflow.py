@@ -45,6 +45,11 @@ def make_ttv_simulation(
     if config.simulation is None:
         raise ValueError("config.simulation is required to create a TTV simulation")
 
+    if scoring_backend is None:
+        from .scoring import make_mass_threshold_scorer
+
+        scoring_backend = make_mass_threshold_scorer(config.scoring.backend)
+
     from .ttv_sim import TTVSimulation
 
     simulation = TTVSimulation(

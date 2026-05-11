@@ -15,6 +15,7 @@ import cmat
 - `cmat.TargetConfig` - target metadata and data-root configuration
 - `cmat.FitControls` - fitting iteration and sampler controls
 - `cmat.SimulationGrid` - period-ratio, mass-grid, and MEGNO controls
+- `cmat.ScoringConfig` - typed selector for the current scoring backend
 - `cmat.OutputConfig` - artifact output paths
 - `cmat.RunConfig` - composite workflow configuration
 
@@ -27,7 +28,7 @@ Example:
 ```python
 import numpy as np
 
-from cmat.config import OutputConfig, RunConfig, SimulationGrid, TargetConfig
+from cmat.config import OutputConfig, RunConfig, ScoringConfig, SimulationGrid, TargetConfig
 from cmat.workflow import make_ttv_simulation, workflow_manifest
 
 config = RunConfig(
@@ -39,6 +40,7 @@ config = RunConfig(
         megno_dt=0.1,
         megno_runtime=100.0,
     ),
+    scoring=ScoringConfig(backend="chi2_rms"),
     output=OutputConfig(root_dir="artifacts", run_name="wasp44b-reduced"),
     random_seed=42,
 )
@@ -123,6 +125,16 @@ Derived properties:
 - `figures_dir` - `run_dir / "figures"`
 - `metadata_path` - `run_dir / "run_metadata.json"`
 
+### `ScoringConfig`
+
+Typed selector for the current mass-threshold scoring backend.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `backend` | `str` | `"chi2_rms"` | Current supported backend name |
+
+The Stage 4 prep boundary currently supports only `chi2_rms`, but the config surface is now explicit so future backends can be added without changing `RunConfig` shape again.
+
 ### `RunConfig`
 
 Composite configuration for fitting and simulation runs.
@@ -132,6 +144,7 @@ Composite configuration for fitting and simulation runs.
 | `target` | `TargetConfig` | required | mandatory |
 | `fit` | `FitControls` | default factory | fitting controls |
 | `simulation` | `SimulationGrid \| None` | `None` | required by `make_ttv_simulation(...)` |
+| `scoring` | `ScoringConfig` | default factory | typed scoring backend selector |
 | `output` | `OutputConfig` | default factory | artifact destinations |
 | `random_seed` | `int \| None` | `None` | must be non-negative if provided |
 
@@ -145,7 +158,7 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 | --- | --- | --- |
 | `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by the fitting workflow |
 | `make_fit_lpf(target)` | `TransitFitWorkflow` | Builds a transit-fitting object from a typed target config |
-| `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop, scoring_backend=None)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays |
+| `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop, scoring_backend=None)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays and selects the configured default scorer |
 | `workflow_manifest(config, *, dependency_versions=None, notes=None)` | `dict` | Builds a JSON-serializable run manifest |
 
 ### `make_ttv_simulation(...)` input contract
@@ -168,6 +181,7 @@ The adapter forwards:
 - `SimulationGrid.period_ratios` -> `TTVSimulation.rs`
 - `SimulationGrid.companion_masses` -> `TTVSimulation.mp2s`
 - `SimulationGrid.n_transit_simulations` -> `TTVSimulation.N`
+- `ScoringConfig.backend` -> default scorer created for `TTVSimulation.scoring_backend`
 - `SimulationGrid.megno_dt` / `megno_runtime` -> mutable MEGNO controls on the returned object
 
 ## Scoring helpers

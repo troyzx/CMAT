@@ -8,6 +8,7 @@ __all__ = [
     "TargetConfig",
     "FitControls",
     "SimulationGrid",
+    "ScoringConfig",
     "OutputConfig",
     "RunConfig",
 ]
@@ -32,6 +33,7 @@ def __getattr__(attribute_name):
         "TargetConfig",
         "FitControls",
         "SimulationGrid",
+        "ScoringConfig",
         "OutputConfig",
         "RunConfig",
     }:
@@ -39,6 +41,7 @@ def __getattr__(attribute_name):
             FitControls,
             OutputConfig,
             RunConfig,
+            ScoringConfig,
             SimulationGrid,
             TargetConfig,
         )
@@ -47,6 +50,7 @@ def __getattr__(attribute_name):
             "TargetConfig": TargetConfig,
             "FitControls": FitControls,
             "SimulationGrid": SimulationGrid,
+            "ScoringConfig": ScoringConfig,
             "OutputConfig": OutputConfig,
             "RunConfig": RunConfig,
         }[attribute_name]

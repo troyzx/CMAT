@@ -110,6 +110,14 @@ class Chi2AndRmsMassThresholdScorer:
         )
 
 
+def make_mass_threshold_scorer(backend: str) -> MassThresholdScorer:
+    """Build a supported mass-threshold scorer from a typed backend name."""
+
+    if backend == "chi2_rms":
+        return Chi2AndRmsMassThresholdScorer()
+    raise ValueError(f"Unsupported scoring backend: {backend}")
+
+
 get_chi2_v = np.vectorize(
     get_chi2,
     excluded=["epoch", "ttv_mcmc", "ttv_err"],

@@ -7,6 +7,7 @@ from cmat.config import (
     FitControls,
     OutputConfig,
     RunConfig,
+    ScoringConfig,
     SimulationGrid,
     TargetConfig,
 )
@@ -68,6 +69,11 @@ class ConfigTests(unittest.TestCase):
             "artifacts/wasp44-smoke/run_metadata.json",
         )
 
+    def test_scoring_config_is_json_serializable(self):
+        scoring = ScoringConfig()
+
+        self.assertEqual(scoring.to_dict(), {"backend": "chi2_rms"})
+
     def test_run_config_is_json_serializable(self):
         config = RunConfig(
             target=TargetConfig("WASP-44 b"),
@@ -80,10 +86,15 @@ class ConfigTests(unittest.TestCase):
 
         self.assertIn('"random_seed": 42', serialized)
         self.assertIn('"parameter_count": 1', serialized)
+        self.assertIn('"backend": "chi2_rms"', serialized)
 
     def test_run_config_validates_seed(self):
         with self.assertRaises(ValueError):
             RunConfig(target=TargetConfig("WASP-44 b"), random_seed=-1)
+
+    def test_run_config_validates_scoring_type(self):
+        with self.assertRaises(TypeError):
+            RunConfig(target=TargetConfig("WASP-44 b"), scoring="chi2_rms")
 
 
 if __name__ == "__main__":

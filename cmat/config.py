@@ -249,12 +249,26 @@ class OutputConfig:
 
 
 @dataclass(frozen=True)
+class ScoringConfig:
+    """Typed selector for the current mass-threshold scoring backend."""
+
+    backend: str = "chi2_rms"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "backend", _require_text(self.backend, "backend"))
+
+    def to_dict(self) -> dict[str, str]:
+        return {"backend": self.backend}
+
+
+@dataclass(frozen=True)
 class RunConfig:
     """Composite configuration for a CMAT fitting and simulation run."""
 
     target: TargetConfig
     fit: FitControls = field(default_factory=FitControls)
     simulation: SimulationGrid | None = None
+    scoring: ScoringConfig = field(default_factory=ScoringConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     random_seed: int | None = None
 
@@ -265,6 +279,8 @@ class RunConfig:
             raise TypeError("fit must be a FitControls")
         if self.simulation is not None and not isinstance(self.simulation, SimulationGrid):
             raise TypeError("simulation must be a SimulationGrid or None")
+        if not isinstance(self.scoring, ScoringConfig):
+            raise TypeError("scoring must be a ScoringConfig")
         if not isinstance(self.output, OutputConfig):
             raise TypeError("output must be an OutputConfig")
         if self.random_seed is not None:
@@ -279,6 +295,7 @@ class RunConfig:
             "target": self.target.to_dict(),
             "fit": self.fit.to_dict(),
             "simulation": None if self.simulation is None else self.simulation.to_dict(),
+            "scoring": self.scoring.to_dict(),
             "output": self.output.to_dict(),
             "random_seed": self.random_seed,
         }
