@@ -74,6 +74,10 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(scoring.to_dict(), {"backend": "chi2_rms"})
 
+    def test_scoring_config_rejects_unknown_backend(self):
+        with self.assertRaises(ValueError):
+            ScoringConfig(backend="bayes")
+
     def test_run_config_is_json_serializable(self):
         config = RunConfig(
             target=TargetConfig("WASP-44 b"),

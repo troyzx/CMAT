@@ -87,22 +87,6 @@ class WorkflowTests(unittest.TestCase):
 
         self.assertIs(simulation.scoring_backend, scoring_backend)
 
-    def test_make_ttv_simulation_rejects_unknown_scoring_backend_name(self):
-        config = RunConfig(
-            target=TargetConfig("WASP-44 b"),
-            simulation=SimulationGrid(period_ratios=[1.5], companion_masses=[10.0]),
-            scoring=ScoringConfig(backend="bayes"),
-        )
-
-        with self.assertRaises(ValueError):
-            make_ttv_simulation(
-                config,
-                epochs=np.array([0, 1, 2]),
-                ttv_mcmc=np.array([0.0, 1.0, 0.0]),
-                ttv_err=np.ones(3),
-                prop=[{"orbital_distance": 1.0, "orbital_period": 1.0, "Mp": 1.0, "Ms": 1.0}],
-            )
-
     def test_workflow_manifest_is_json_serializable(self):
         config = RunConfig(
             target=TargetConfig("WASP-44 b"),

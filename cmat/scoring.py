@@ -8,6 +8,8 @@ from typing import Protocol
 import numpy as np
 import scipy.stats
 
+DEFAULT_MASS_THRESHOLD_BACKEND = "chi2_rms"
+
 
 def get_chi2(ttv_rebound, epoch, ttv_mcmc, ttv_err):
     """Return the best chi-squared score over possible epoch alignments."""
@@ -31,7 +33,7 @@ class MassThresholds:
 
     chi2: np.ndarray
     rms: np.ndarray
-    backend: str = "chi2_rms"
+    backend: str = DEFAULT_MASS_THRESHOLD_BACKEND
     chi2_threshold: float | None = None
     rms_threshold: float | None = None
 
@@ -128,9 +130,15 @@ class Chi2AndRmsMassThresholdScorer:
 def make_mass_threshold_scorer(backend: str) -> MassThresholdScorer:
     """Build a supported mass-threshold scorer from a typed backend name."""
 
-    if backend == "chi2_rms":
+    if backend == DEFAULT_MASS_THRESHOLD_BACKEND:
         return Chi2AndRmsMassThresholdScorer()
     raise ValueError(f"Unsupported scoring backend: {backend}")
+
+
+def supported_mass_threshold_backends() -> tuple[str, ...]:
+    """Return the backend names currently supported by the scorer factory."""
+
+    return (DEFAULT_MASS_THRESHOLD_BACKEND,)
 
 
 get_chi2_v = np.vectorize(

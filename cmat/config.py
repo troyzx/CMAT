@@ -255,7 +255,15 @@ class ScoringConfig:
     backend: str = "chi2_rms"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "backend", _require_text(self.backend, "backend"))
+        from .scoring import supported_mass_threshold_backends
+
+        backend = _require_text(self.backend, "backend")
+        if backend not in supported_mass_threshold_backends():
+            raise ValueError(
+                "backend must be one of "
+                + ", ".join(supported_mass_threshold_backends())
+            )
+        object.__setattr__(self, "backend", backend)
 
     def to_dict(self) -> dict[str, str]:
         return {"backend": self.backend}

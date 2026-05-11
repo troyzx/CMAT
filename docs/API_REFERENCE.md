@@ -133,7 +133,7 @@ Typed selector for the current mass-threshold scoring backend.
 | --- | --- | --- | --- |
 | `backend` | `str` | `"chi2_rms"` | Current supported backend name |
 
-The Stage 4 prep boundary currently supports only `chi2_rms`, but the config surface is now explicit so future backends can be added without changing `RunConfig` shape again.
+The Stage 4 prep boundary currently supports only `chi2_rms`, and `ScoringConfig` validates against `supported_mass_threshold_backends()`. The config surface is now explicit so future backends can be added without changing `RunConfig` shape again.
 
 ### `RunConfig`
 
@@ -202,6 +202,7 @@ The `cmat.scoring` module now contains both the current comparison helpers and t
 | `MassThresholds` | Dataclass holding the current `chi2` / RMS critical-mass curves plus backend metadata |
 | `MassThresholdScorer` | Protocol for backend objects that expose `critical_masses(...)` |
 | `Chi2AndRmsMassThresholdScorer` | Default backend that preserves the current legacy `chi^2` / RMS behavior |
+| `supported_mass_threshold_backends()` | Return the backend names currently accepted by `ScoringConfig.backend` |
 
 ## Workflow classes
 
