@@ -38,6 +38,7 @@ def make_ttv_simulation(
     ttv_mcmc,
     ttv_err,
     prop,
+    scoring_backend=None,
 ):
     """Create a `TTVSimulation` instance from a run configuration and TTV data."""
 
@@ -54,6 +55,7 @@ def make_ttv_simulation(
         mp2s=config.simulation.companion_masses,
         prop=prop,
         N=config.simulation.n_transit_simulations,
+        scoring_backend=scoring_backend,
     )
     simulation.megno_dt = config.simulation.megno_dt
     simulation.megno_runtime = config.simulation.megno_runtime

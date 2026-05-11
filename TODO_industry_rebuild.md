@@ -39,7 +39,7 @@ This roadmap keeps the current scientific objective intact: constrain hidden com
 
 - Make the probabilistic model explicit: priors, fitted parameters, posterior samples, likelihood assumptions, and downstream uncertainty propagation.
 - Introduce a single-target Bayesian TTV scoring backend only in this stage: start with a nuisance-parameter likelihood over epoch shift, constant offset, and extra jitter, keep it parallel to the current `chi^2` / RMS scoring, and use Stage 2 inject-recovery results to judge whether it should become the default.
-- Provide clean interfaces for alternative samplers, reduced-order simulators, or approximate Bayesian computation experiments.
+- Provide clean interfaces for alternative samplers, reduced-order simulators, or approximate Bayesian computation experiments. _(Started with an injectable scoring backend boundary that preserves the current `chi^2` / RMS scorer as the default implementation.)_
 - Cache expensive intermediate products, including downloaded light curves, posterior samples, simulated TTV grids, and MEGNO grids.
 - Improve parallel execution controls for local workstations and batch environments.
 - Add provenance metadata to every saved result: code version, dependency versions, target parameters, grid definition, random seeds, and runtime settings.

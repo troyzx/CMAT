@@ -59,6 +59,32 @@ class WorkflowTests(unittest.TestCase):
                 prop=[],
             )
 
+    def test_make_ttv_simulation_accepts_custom_scoring_backend(self):
+        config = RunConfig(
+            target=TargetConfig("WASP-44 b"),
+            simulation=SimulationGrid(period_ratios=[1.5], companion_masses=[10.0]),
+        )
+        scoring_backend = object()
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+
+        simulation = make_ttv_simulation(
+            config,
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([0.0, 1.0, 0.0]),
+            ttv_err=np.ones(3),
+            prop=prop,
+            scoring_backend=scoring_backend,
+        )
+
+        self.assertIs(simulation.scoring_backend, scoring_backend)
+
     def test_workflow_manifest_is_json_serializable(self):
         config = RunConfig(
             target=TargetConfig("WASP-44 b"),

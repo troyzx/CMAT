@@ -1,6 +1,12 @@
-"""Scoring helpers for comparing simulated and observed TTV residuals."""
+"""Scoring helpers and backend interfaces for comparing simulated TTV grids."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
+import scipy.stats
 
 
 def get_chi2(ttv_rebound, epoch, ttv_mcmc, ttv_err):
@@ -17,6 +23,91 @@ def get_rms(ttv_rebound):
 
     rms = np.sqrt(np.mean(ttv_rebound**2))
     return rms
+
+
+@dataclass(frozen=True)
+class MassThresholds:
+    """Critical-mass curves derived from one scoring backend over a TTV grid."""
+
+    chi2: np.ndarray
+    rms: np.ndarray
+
+
+class MassThresholdScorer(Protocol):
+    """Protocol for backend objects that extract critical-mass curves."""
+
+    def critical_masses(
+        self,
+        *,
+        ttv_results,
+        epoch,
+        ttv_mcmc,
+        ttv_err,
+        period_ratios,
+        companion_masses,
+    ) -> MassThresholds: ...
+
+
+def first_rejected_mass(score_2d, crit, *, valid_2d, period_ratios, companion_masses):
+    """Return the first rejected companion mass for each period-ratio column."""
+
+    rejected_masses = []
+    for ratio_index, _ in enumerate(period_ratios):
+        for mass_index, companion_mass in enumerate(companion_masses):
+            if not valid_2d[mass_index, ratio_index]:
+                continue
+            if not np.isfinite(score_2d[mass_index, ratio_index]):
+                continue
+            if score_2d[mass_index, ratio_index] >= crit:
+                rejected_masses.append(companion_mass)
+                break
+    return np.array(rejected_masses)
+
+
+class Chi2AndRmsMassThresholdScorer:
+    """Default scoring backend that preserves the current chi2/RMS behavior."""
+
+    def critical_masses(
+        self,
+        *,
+        ttv_results,
+        epoch,
+        ttv_mcmc,
+        ttv_err,
+        period_ratios,
+        companion_masses,
+    ) -> MassThresholds:
+        chi2 = get_chi2_v(
+            ttv_rebound=np.array(ttv_results),
+            epoch=epoch,
+            ttv_mcmc=ttv_mcmc,
+            ttv_err=ttv_err,
+        )
+        chi2_crit = scipy.stats.chi2.ppf(0.997, len(ttv_mcmc))
+
+        rms = get_rms_v(ttv_results)
+        rms_crit = np.sqrt(np.mean(ttv_mcmc**2))
+
+        chi2_2d = np.array(chi2).reshape(len(companion_masses), len(period_ratios))
+        rms_2d = np.array(rms).reshape(len(companion_masses), len(period_ratios))
+        valid_2d = rms_2d != 0
+
+        return MassThresholds(
+            chi2=first_rejected_mass(
+                chi2_2d,
+                chi2_crit,
+                valid_2d=valid_2d,
+                period_ratios=period_ratios,
+                companion_masses=companion_masses,
+            ),
+            rms=first_rejected_mass(
+                rms_2d,
+                rms_crit,
+                valid_2d=valid_2d,
+                period_ratios=period_ratios,
+                companion_masses=companion_masses,
+            ),
+        )
 
 
 get_chi2_v = np.vectorize(

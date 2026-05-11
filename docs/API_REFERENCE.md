@@ -145,7 +145,7 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 | --- | --- | --- |
 | `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by the fitting workflow |
 | `make_fit_lpf(target)` | `TransitFitWorkflow` | Builds a transit-fitting object from a typed target config |
-| `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays |
+| `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop, scoring_backend=None)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays |
 | `workflow_manifest(config, *, dependency_versions=None, notes=None)` | `dict` | Builds a JSON-serializable run manifest |
 
 ### `make_ttv_simulation(...)` input contract
@@ -161,6 +161,7 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
   - `Ms`
   - `Rs`
   - `Rp`
+- `scoring_backend`, if provided, to expose a `critical_masses(...)` method compatible with the current mass-threshold extraction flow
 
 The adapter forwards:
 
@@ -171,7 +172,7 @@ The adapter forwards:
 
 ## Scoring helpers
 
-The `cmat.scoring` module contains the current comparison helpers used by the forward-simulation workflow.
+The `cmat.scoring` module now contains both the current comparison helpers and the first explicit backend boundary for Stage 4 scoring work.
 
 | Function | Purpose |
 | --- | --- |
@@ -179,6 +180,12 @@ The `cmat.scoring` module contains the current comparison helpers used by the fo
 | `get_rms(ttv_rebound)` | Root-mean-square amplitude of a simulated TTV series |
 | `get_chi2_v(...)` | Vectorized form of `get_chi2` used across simulation grids |
 | `get_rms_v(...)` | Vectorized form of `get_rms` used across simulation grids |
+
+| Interface | Purpose |
+| --- | --- |
+| `MassThresholds` | Dataclass holding the current `chi2` and RMS critical-mass curves |
+| `MassThresholdScorer` | Protocol for backend objects that expose `critical_masses(...)` |
+| `Chi2AndRmsMassThresholdScorer` | Default backend that preserves the current legacy `chi^2` / RMS behavior |
 
 ## Workflow classes
 
@@ -219,7 +226,7 @@ Legacy alias: `cmat.ttv_sim`
 Constructor:
 
 ```python
-TTVSimulation(epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80)
+TTVSimulation(epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80, scoring_backend=None)
 ```
 
 Key constructor inputs:
@@ -243,6 +250,7 @@ Important attributes and methods:
 | `simulation_m((r, mp2))` | method | Run one MEGNO simulation |
 | `run_megno(number_of_threads)` | method | Run MEGNO across the full grid |
 | `plot_megno()` | method | Plot the MEGNO map |
+| `scoring_backend` | attribute | Backend object used to extract critical-mass curves from the current TTV grid |
 | `megno_dt` / `megno_runtime` | attributes | Controls for MEGNO timestep and integration runtime |
 
 `get_critical_masses()` and `get_m_crit()` return the same pair of arrays: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion.

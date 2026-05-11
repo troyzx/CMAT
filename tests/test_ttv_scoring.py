@@ -12,6 +12,7 @@ MPLCONFIGDIR.mkdir(exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIGDIR))
 
 from cmat import TTVSimulation, scoring
+from cmat.scoring import MassThresholds
 from cmat.ttv_sim import ttv_sim
 
 
@@ -202,6 +203,73 @@ class TtvScoringTests(unittest.TestCase):
 
         np.testing.assert_array_equal(chi2_limit, expected_chi2_limit)
         np.testing.assert_array_equal(rms_limit, expected_rms_limit)
+
+    def test_get_m_crit_can_delegate_to_custom_scoring_backend(self):
+        class StubScoringBackend:
+            def __init__(self):
+                self.calls = []
+
+            def critical_masses(
+                self,
+                *,
+                ttv_results,
+                epoch,
+                ttv_mcmc,
+                ttv_err,
+                period_ratios,
+                companion_masses,
+            ):
+                self.calls.append(
+                    {
+                        "ttv_results": list(ttv_results),
+                        "epoch": epoch.copy(),
+                        "ttv_mcmc": ttv_mcmc.copy(),
+                        "ttv_err": ttv_err.copy(),
+                        "period_ratios": period_ratios.copy(),
+                        "companion_masses": companion_masses.copy(),
+                    }
+                )
+                return MassThresholds(
+                    chi2=np.array([42.0]),
+                    rms=np.array([24.0]),
+                )
+
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        scoring_backend = StubScoringBackend()
+        simulation = ttv_sim(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=prop,
+            scoring_backend=scoring_backend,
+        )
+        simulation.ttv_results = [
+            np.array([0.0, 5.0, 5.0, 5.0]),
+            np.array([10.0, 10.0, 10.0, 10.0]),
+        ]
+
+        chi2_limit, rms_limit = simulation.get_m_crit()
+
+        np.testing.assert_array_equal(chi2_limit, np.array([42.0]))
+        np.testing.assert_array_equal(rms_limit, np.array([24.0]))
+        self.assertEqual(len(scoring_backend.calls), 1)
+        np.testing.assert_array_equal(
+            scoring_backend.calls[0]["period_ratios"],
+            np.array([1.0]),
+        )
+        np.testing.assert_array_equal(
+            scoring_backend.calls[0]["companion_masses"],
+            np.array([10.0, 20.0]),
+        )
 
 
 if __name__ == "__main__":

@@ -5,7 +5,11 @@ from matplotlib import pyplot as plt
 from multiprocessing import get_context
 from tqdm.auto import tqdm
 
-from .scoring import get_chi2, get_chi2_v, get_rms, get_rms_v
+from .scoring import (
+    Chi2AndRmsMassThresholdScorer,
+    get_chi2,
+    get_rms,
+)
 
 mj_to_ms = 9.5e-4
 me_to_ms = 3.0e-6
@@ -28,7 +32,7 @@ and find potentially stable configurations.
 
 
 class ttv_sim:
-    def __init__(self, epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80):
+    def __init__(self, epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80, scoring_backend=None):
         self.epochs = epochs  # The epochs at which to calculate the TTVs
         self.ttv_mcmc = ttv_mcmc  # The TTVs obtained from MCMC fitting
         self.ttv_err = ttv_err  # The errors on the MCMC TTVs
@@ -45,6 +49,7 @@ class ttv_sim:
         self.megno_dt = 1 / 20
         self.megno_runtime = 1e4
         self.ttv_rebound = []
+        self.scoring_backend = scoring_backend or Chi2AndRmsMassThresholdScorer()
 
     def calculate_rebound(self, par, e1=0, e2=0, inc1=0, inc2=0, f1=0, f2=0):
         r, mp2 = par
@@ -142,46 +147,16 @@ class ttv_sim:
         return self.ttv_rebound
 
     def get_m_crit(self):
-        epoch = self.epochs
-        ttv_mcmc = self.ttv_mcmc
-        ttv_err = self.ttv_err
-        rs = self.rs
-        mp2s = self.mp2s
-        ttv_results = self.ttv_results
-
-        chi2 = get_chi2_v(
-            ttv_rebound=np.array(self.ttv_results),
-            epoch=epoch,
-            ttv_mcmc=ttv_mcmc,
-            ttv_err=ttv_err,
+        thresholds = self.scoring_backend.critical_masses(
+            ttv_results=self.ttv_results,
+            epoch=self.epochs,
+            ttv_mcmc=self.ttv_mcmc,
+            ttv_err=self.ttv_err,
+            period_ratios=self.rs,
+            companion_masses=self.mp2s,
         )
-        chi2_crit = scipy.stats.chi2.ppf(0.997, len(ttv_mcmc))
-
-        rms = get_rms_v(ttv_results)
-        rms_crit = np.sqrt(np.mean(ttv_mcmc**2))
-
-        chi2_2d = np.array(chi2).reshape(len(mp2s), len(rs))
-        rms_2d = np.array(rms).reshape(len(mp2s), len(rs))
-        valid_2d = rms_2d != 0
-
-        def first_rejected_mass(score_2d, crit):
-            rejected_masses = []
-            for r_idx, _ in enumerate(rs):
-                for mp2_idx, mp2 in enumerate(mp2s):
-                    if not valid_2d[mp2_idx, r_idx]:
-                        continue
-                    if not np.isfinite(score_2d[mp2_idx, r_idx]):
-                        continue
-                    if score_2d[mp2_idx, r_idx] >= crit:
-                        rejected_masses.append(mp2)
-                        break
-            return np.array(rejected_masses)
-
-        m_crit_chi2 = first_rejected_mass(chi2_2d, chi2_crit)
-        m_crit_rms = first_rejected_mass(rms_2d, rms_crit)
-
-        self.m_crit_chi2 = m_crit_chi2
-        self.m_crit_rms = m_crit_rms
+        self.m_crit_chi2 = thresholds.chi2
+        self.m_crit_rms = thresholds.rms
 
         return self.m_crit_chi2, self.m_crit_rms
 
