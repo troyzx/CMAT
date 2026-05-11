@@ -89,6 +89,10 @@ class TtvScoringTests(unittest.TestCase):
 
         np.testing.assert_array_equal(chi2_limit, np.array([20.0, 10.0]))
         np.testing.assert_array_equal(rms_limit, np.array([20.0, 10.0]))
+        scoring_summary = sim.get_scoring_summary()
+        self.assertEqual(scoring_summary["backend"], "chi2_rms")
+        np.testing.assert_array_equal(scoring_summary["chi2"], [20.0, 10.0])
+        np.testing.assert_array_equal(scoring_summary["rms"], [20.0, 10.0])
 
     def test_get_m_crit_ignores_zero_signal_rows(self):
         prop = [
@@ -262,6 +266,7 @@ class TtvScoringTests(unittest.TestCase):
         np.testing.assert_array_equal(chi2_limit, np.array([42.0]))
         np.testing.assert_array_equal(rms_limit, np.array([24.0]))
         self.assertEqual(len(scoring_backend.calls), 1)
+        self.assertEqual(simulation.get_scoring_summary()["backend"], "chi2_rms")
         np.testing.assert_array_equal(
             scoring_backend.calls[0]["period_ratios"],
             np.array([1.0]),
@@ -270,6 +275,26 @@ class TtvScoringTests(unittest.TestCase):
             scoring_backend.calls[0]["companion_masses"],
             np.array([10.0, 20.0]),
         )
+
+    def test_get_scoring_summary_requires_prior_scoring_run(self):
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=[
+                {
+                    "orbital_distance": 1.0,
+                    "orbital_period": 1.0,
+                    "Mp": 1.0,
+                    "Ms": 1.0,
+                }
+            ],
+        )
+
+        with self.assertRaises(ValueError):
+            simulation.get_scoring_summary()
 
 
 if __name__ == "__main__":

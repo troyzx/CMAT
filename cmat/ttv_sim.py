@@ -155,6 +155,7 @@ class ttv_sim:
             period_ratios=self.rs,
             companion_masses=self.mp2s,
         )
+        self.mass_thresholds = thresholds
         self.m_crit_chi2 = thresholds.chi2
         self.m_crit_rms = thresholds.rms
 
@@ -164,6 +165,13 @@ class ttv_sim:
         """Return the first rejected companion masses for the current grid."""
 
         return self.get_m_crit()
+
+    def get_scoring_summary(self):
+        """Return a JSON-serializable summary of the latest scoring result."""
+
+        if not hasattr(self, "mass_thresholds"):
+            raise ValueError("Run get_m_crit() before requesting a scoring summary")
+        return self.mass_thresholds.to_dict()
 
     def simulation_m(self, par):
         r, mp2 = par  # unpack parameters

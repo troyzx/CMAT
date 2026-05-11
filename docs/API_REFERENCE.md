@@ -197,7 +197,7 @@ The `cmat.scoring` module now contains both the current comparison helpers and t
 
 | Interface | Purpose |
 | --- | --- |
-| `MassThresholds` | Dataclass holding the current `chi2` and RMS critical-mass curves |
+| `MassThresholds` | Dataclass holding the current `chi2` / RMS critical-mass curves plus backend metadata |
 | `MassThresholdScorer` | Protocol for backend objects that expose `critical_masses(...)` |
 | `Chi2AndRmsMassThresholdScorer` | Default backend that preserves the current legacy `chi^2` / RMS behavior |
 
@@ -261,10 +261,12 @@ Important attributes and methods:
 | `get_ttv_rebound_all(number_of_thread)` | method | Run REBOUND across the full grid in parallel |
 | `get_critical_masses()` | method | Preferred public alias for the current mass-threshold extraction |
 | `get_m_crit()` | method | Legacy-compatible mass-threshold name |
+| `get_scoring_summary()` | method | Return a JSON-serializable summary of the latest scoring result |
 | `simulation_m((r, mp2))` | method | Run one MEGNO simulation |
 | `run_megno(number_of_threads)` | method | Run MEGNO across the full grid |
 | `plot_megno()` | method | Plot the MEGNO map |
 | `scoring_backend` | attribute | Backend object used to extract critical-mass curves from the current TTV grid |
+| `mass_thresholds` | attribute | Latest structured `MassThresholds` result after scoring runs |
 | `megno_dt` / `megno_runtime` | attributes | Controls for MEGNO timestep and integration runtime |
 
 `get_critical_masses()` and `get_m_crit()` return the same pair of arrays: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion.

@@ -31,6 +31,18 @@ class MassThresholds:
 
     chi2: np.ndarray
     rms: np.ndarray
+    backend: str = "chi2_rms"
+    chi2_threshold: float | None = None
+    rms_threshold: float | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "backend": self.backend,
+            "chi2": self.chi2.tolist(),
+            "rms": self.rms.tolist(),
+            "chi2_threshold": self.chi2_threshold,
+            "rms_threshold": self.rms_threshold,
+        }
 
 
 class MassThresholdScorer(Protocol):
@@ -107,6 +119,9 @@ class Chi2AndRmsMassThresholdScorer:
                 period_ratios=period_ratios,
                 companion_masses=companion_masses,
             ),
+            backend="chi2_rms",
+            chi2_threshold=chi2_crit,
+            rms_threshold=rms_crit,
         )
 
 
