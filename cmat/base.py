@@ -612,3 +612,17 @@ class Fitlpf:
         plt.ylabel("residual (s)")
 
         return fig, ax
+
+    def plot_ttv_residuals(
+        self, plot_zero_epoch=False, set_epoch_zero=False, remove_baseline=True
+    ):
+        """Plot transit-timing residuals using the clearer public alias."""
+
+        return self.plot_ttv_re(
+            plot_zero_epoch=plot_zero_epoch,
+            set_epoch_zero=set_epoch_zero,
+            remove_baseline=remove_baseline,
+        )
+
+
+TransitFitWorkflow = Fitlpf

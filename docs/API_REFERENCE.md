@@ -8,8 +8,10 @@ CMAT's public surface is still evolving. The current practical entry points are:
 import cmat
 ```
 
-- `cmat.Fitlpf` - transit-fitting workflow object
-- `cmat.ttv_sim` - TTV and MEGNO forward-simulation workflow object
+- `cmat.TransitFitWorkflow` - preferred transit-fitting workflow name
+- `cmat.TTVSimulation` - preferred TTV and MEGNO forward-simulation workflow name
+- `cmat.Fitlpf` - legacy-compatible alias for `cmat.TransitFitWorkflow`
+- `cmat.ttv_sim` - legacy-compatible alias for `cmat.TTVSimulation`
 - `cmat.TargetConfig` - target metadata and data-root configuration
 - `cmat.FitControls` - fitting iteration and sampler controls
 - `cmat.SimulationGrid` - period-ratio, mass-grid, and MEGNO controls
@@ -141,9 +143,9 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 
 | Function | Returns | Purpose |
 | --- | --- | --- |
-| `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by `Fitlpf` |
-| `make_fit_lpf(target)` | `Fitlpf` | Builds a legacy transit-fitting object from a typed target config |
-| `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop)` | `ttv_sim` | Builds a forward-simulation object from typed config plus observed TTV arrays |
+| `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by the fitting workflow |
+| `make_fit_lpf(target)` | `TransitFitWorkflow` | Builds a transit-fitting object from a typed target config |
+| `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays |
 | `workflow_manifest(config, *, dependency_versions=None, notes=None)` | `dict` | Builds a JSON-serializable run manifest |
 
 ### `make_ttv_simulation(...)` input contract
@@ -162,9 +164,9 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 
 The adapter forwards:
 
-- `SimulationGrid.period_ratios` -> `ttv_sim.rs`
-- `SimulationGrid.companion_masses` -> `ttv_sim.mp2s`
-- `SimulationGrid.n_transit_simulations` -> `ttv_sim.N`
+- `SimulationGrid.period_ratios` -> `TTVSimulation.rs`
+- `SimulationGrid.companion_masses` -> `TTVSimulation.mp2s`
+- `SimulationGrid.n_transit_simulations` -> `TTVSimulation.N`
 - `SimulationGrid.megno_dt` / `megno_runtime` -> mutable MEGNO controls on the returned object
 
 ## Scoring helpers
@@ -178,16 +180,18 @@ The `cmat.scoring` module contains the current comparison helpers used by the fo
 | `get_chi2_v(...)` | Vectorized form of `get_chi2` used across simulation grids |
 | `get_rms_v(...)` | Vectorized form of `get_rms` used across simulation grids |
 
-## Legacy workflow classes
+## Workflow classes
 
-The classes below are still important, but they remain rebuild-era APIs rather than the preferred long-term boundary.
+The classes below are still rebuild-era APIs. The preferred public names are clearer aliases layered on top of the same current implementations.
 
-### `cmat.base.Fitlpf`
+### `cmat.TransitFitWorkflow`
+
+Legacy alias: `cmat.Fitlpf`
 
 Constructor:
 
 ```python
-Fitlpf(planet_name: str, datadir=None)
+TransitFitWorkflow(planet_name: str, datadir=None)
 ```
 
 Primary responsibilities:
@@ -204,16 +208,18 @@ Common call sequence in the current notebook-era workflow:
 3. `fit_singles()`
 4. `get_posterior_samples()`
 5. `calculate_ttv()`
-6. `plot_tcs()` / `plot_ttv_re()`
+6. `plot_tcs()` / `plot_ttv_residuals()` (`plot_ttv_re()` remains available as the legacy alias)
 
 Operational note: this is the most environment-sensitive surface because it depends on the PyTransit stack.
 
-### `cmat.ttv_sim.ttv_sim`
+### `cmat.TTVSimulation`
+
+Legacy alias: `cmat.ttv_sim`
 
 Constructor:
 
 ```python
-ttv_sim(epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80)
+TTVSimulation(epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80)
 ```
 
 Key constructor inputs:
@@ -232,13 +238,14 @@ Important attributes and methods:
 | --- | --- | --- |
 | `calculate_rebound((r, mp2))` | method | Simulate one REBOUND TTV series for a single grid point |
 | `get_ttv_rebound_all(number_of_thread)` | method | Run REBOUND across the full grid in parallel |
-| `get_m_crit()` | method | Compute first rejected companion masses for the current `chi^2` and RMS thresholds |
+| `get_critical_masses()` | method | Preferred public alias for the current mass-threshold extraction |
+| `get_m_crit()` | method | Legacy-compatible mass-threshold name |
 | `simulation_m((r, mp2))` | method | Run one MEGNO simulation |
 | `run_megno(number_of_threads)` | method | Run MEGNO across the full grid |
 | `plot_megno()` | method | Plot the MEGNO map |
 | `megno_dt` / `megno_runtime` | attributes | Controls for MEGNO timestep and integration runtime |
 
-`get_m_crit()` returns two arrays: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion.
+`get_critical_masses()` and `get_m_crit()` return the same pair of arrays: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion.
 
 ## Stability note
 

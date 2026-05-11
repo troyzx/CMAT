@@ -30,7 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
-from cmat.ttv_sim import ttv_sim
+from cmat import TTVSimulation
 
 base = Path("data") / "WASP-44 b"
 
@@ -42,26 +42,28 @@ with (base / "prop_data.csv").open() as handle:
 epochs = np.array([int(row["epochs"]) for row in ttv_rows])
 ttv_mcmc = np.array([float(row["ttv_mcmc"]) for row in ttv_rows])
 ttv_err = np.array([float(row["ttv_err"]) for row in ttv_rows])
-prop = [
+target_properties = [
     {
         key: float(prop_row[key])
         for key in ("orbital_distance", "orbital_period", "Mp", "Ms", "Rs", "Rp")
     }
 ]
+period_ratios = np.array([1.5])
+companion_masses = np.array([10.0, 20.0])
 
-simulation = ttv_sim(
+simulation = TTVSimulation(
     epochs=epochs,
     ttv_mcmc=ttv_mcmc,
     ttv_err=ttv_err,
-    rs=np.array([1.5]),
-    mp2s=np.array([10.0, 20.0]),
-    prop=prop,
+    rs=period_ratios,
+    mp2s=companion_masses,
+    prop=target_properties,
 )
 simulation.ttv_results = [
     simulation.calculate_rebound((1.5, 10.0)),
     simulation.calculate_rebound((1.5, 20.0)),
 ]
-chi2_limit, rms_limit = simulation.get_m_crit()
+chi2_limit, rms_limit = simulation.get_critical_masses()
 ```
 
 This is not a replacement for the full notebook. It is the smallest currently maintained example of the repository's forward-simulation half.
@@ -87,6 +89,8 @@ python examples/synthetic_ttv_quickstart.py
 ```bash
 jupyter notebook examples/synthetic_ttv_quickstart.ipynb
 ```
+
+Both artifacts use the preferred `cmat.TTVSimulation` compatibility name while preserving the older `cmat.ttv_sim` path for existing code.
 
 Both artifacts:
 
