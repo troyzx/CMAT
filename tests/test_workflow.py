@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from cmat.config import RunConfig, ScoringConfig, SimulationGrid, TargetConfig
-from cmat.scoring import Chi2AndRmsMassThresholdScorer
+from cmat.scoring import Chi2AndRmsMassThresholdScorer, MassThresholds
 from cmat.workflow import legacy_data_dir, make_ttv_simulation, workflow_manifest
 
 
@@ -114,11 +114,20 @@ class WorkflowTests(unittest.TestCase):
             config,
             dependency_versions={"numpy": np.__version__},
             notes={"stage": "rebuild"},
+            scoring_summary=MassThresholds(
+                chi2=np.array([10.0]),
+                rms=np.array([20.0]),
+                backend="chi2_rms",
+                chi2_threshold=1.5,
+                rms_threshold=2.5,
+            ),
         )
         serialized = json.dumps(manifest, sort_keys=True)
 
         self.assertIn('"dependency_versions"', serialized)
         self.assertIn('"stage": "rebuild"', serialized)
+        self.assertIn('"scoring_summary"', serialized)
+        self.assertIn('"backend": "chi2_rms"', serialized)
 
 
 if __name__ == "__main__":

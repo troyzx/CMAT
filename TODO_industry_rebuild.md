@@ -42,7 +42,7 @@ This roadmap keeps the current scientific objective intact: constrain hidden com
 - Provide clean interfaces for alternative samplers, reduced-order simulators, or approximate Bayesian computation experiments. _(Started with an injectable scoring backend boundary and typed scoring config that preserve the current `chi^2` / RMS scorer as the default implementation.)_
 - Cache expensive intermediate products, including downloaded light curves, posterior samples, simulated TTV grids, and MEGNO grids.
 - Improve parallel execution controls for local workstations and batch environments.
-- Add provenance metadata to every saved result: code version, dependency versions, target parameters, grid definition, random seeds, and runtime settings.
+- Add provenance metadata to every saved result: code version, dependency versions, target parameters, grid definition, random seeds, and runtime settings. _(Started by making the current scoring summary JSON-serializable and passable into `workflow_manifest(...)`.)_
 
 ## Stage 5: Industry-Facing Extensions
 

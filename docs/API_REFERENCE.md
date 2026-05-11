@@ -159,7 +159,7 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 | `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by the fitting workflow |
 | `make_fit_lpf(target)` | `TransitFitWorkflow` | Builds a transit-fitting object from a typed target config |
 | `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop, scoring_backend=None)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays and selects the configured default scorer |
-| `workflow_manifest(config, *, dependency_versions=None, notes=None)` | `dict` | Builds a JSON-serializable run manifest |
+| `workflow_manifest(config, *, dependency_versions=None, notes=None, scoring_summary=None)` | `dict` | Builds a JSON-serializable run manifest |
 
 ### `make_ttv_simulation(...)` input contract
 
@@ -183,6 +183,8 @@ The adapter forwards:
 - `SimulationGrid.n_transit_simulations` -> `TTVSimulation.N`
 - `ScoringConfig.backend` -> default scorer created for `TTVSimulation.scoring_backend`
 - `SimulationGrid.megno_dt` / `megno_runtime` -> mutable MEGNO controls on the returned object
+
+`workflow_manifest(...)` also accepts `scoring_summary`, which can be either a plain dict or a `MassThresholds` object. This is the current provenance-friendly path for carrying scoring metadata into a JSON-serializable run record.
 
 ## Scoring helpers
 

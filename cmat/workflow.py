@@ -72,6 +72,7 @@ def workflow_manifest(
     *,
     dependency_versions: dict[str, str] | None = None,
     notes: dict[str, Any] | None = None,
+    scoring_summary: Any | None = None,
 ) -> dict[str, Any]:
     """Build a JSON-serializable manifest for a configured workflow run."""
 
@@ -80,4 +81,8 @@ def workflow_manifest(
         manifest["dependency_versions"] = dict(sorted(dependency_versions.items()))
     if notes is not None:
         manifest["notes"] = notes
+    if scoring_summary is not None:
+        if hasattr(scoring_summary, "to_dict"):
+            scoring_summary = scoring_summary.to_dict()
+        manifest["scoring_summary"] = scoring_summary
     return manifest
