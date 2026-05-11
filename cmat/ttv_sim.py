@@ -185,6 +185,11 @@ class ttv_sim:
 
         return self.m_crit_chi2, self.m_crit_rms
 
+    def get_critical_masses(self):
+        """Return the first rejected companion masses for the current grid."""
+
+        return self.get_m_crit()
+
     def simulation_m(self, par):
         r, mp2 = par  # unpack parameters
         prop = self.prop
@@ -265,3 +270,6 @@ class ttv_sim:
         plt.xticks(new_ticks)
         plt.xlabel(r"$P_2/P_1$")
         plt.ylabel(r"$M_2$ [$M_j$]")
+
+
+TTVSimulation = ttv_sim

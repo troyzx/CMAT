@@ -15,7 +15,7 @@ from .config import RunConfig, TargetConfig
 
 
 def legacy_data_dir(target: TargetConfig) -> str:
-    """Return a data-root string compatible with the current `Fitlpf` API."""
+    """Return a data-root string compatible with the current fitting workflow API."""
 
     data_dir = Path(target.data_dir).as_posix().rstrip("/")
     if data_dir == "":
@@ -24,11 +24,11 @@ def legacy_data_dir(target: TargetConfig) -> str:
 
 
 def make_fit_lpf(target: TargetConfig):
-    """Create a `Fitlpf` instance from a target configuration."""
+    """Create a `TransitFitWorkflow` instance from a target configuration."""
 
-    from .base import Fitlpf
+    from .base import TransitFitWorkflow
 
-    return Fitlpf(target.planet_name, datadir=legacy_data_dir(target))
+    return TransitFitWorkflow(target.planet_name, datadir=legacy_data_dir(target))
 
 
 def make_ttv_simulation(
@@ -39,14 +39,14 @@ def make_ttv_simulation(
     ttv_err,
     prop,
 ):
-    """Create a `ttv_sim` instance from a run configuration and TTV data."""
+    """Create a `TTVSimulation` instance from a run configuration and TTV data."""
 
     if config.simulation is None:
         raise ValueError("config.simulation is required to create a TTV simulation")
 
-    from .ttv_sim import ttv_sim
+    from .ttv_sim import TTVSimulation
 
-    simulation = ttv_sim(
+    simulation = TTVSimulation(
         epochs=epochs,
         ttv_mcmc=ttv_mcmc,
         ttv_err=ttv_err,

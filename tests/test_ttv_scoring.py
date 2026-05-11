@@ -11,7 +11,7 @@ MPLCONFIGDIR = Path(tempfile.gettempdir()) / "cmat-test-mplconfig"
 MPLCONFIGDIR.mkdir(exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIGDIR))
 
-from cmat import scoring
+from cmat import TTVSimulation, scoring
 from cmat.ttv_sim import ttv_sim
 
 
@@ -174,6 +174,34 @@ class TtvScoringTests(unittest.TestCase):
 
         np.testing.assert_array_equal(chi2_limit, np.array([20.0, 20.0]))
         np.testing.assert_array_equal(rms_limit, np.array([20.0, 20.0]))
+
+    def test_preferred_ttvsimulation_alias_exposes_mass_threshold_method(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=prop,
+        )
+        simulation.ttv_results = [
+            np.array([0.0, 5.0, 5.0, 5.0]),
+            np.array([10.0, 10.0, 10.0, 10.0]),
+        ]
+
+        expected_chi2_limit, expected_rms_limit = simulation.get_m_crit()
+        chi2_limit, rms_limit = simulation.get_critical_masses()
+
+        np.testing.assert_array_equal(chi2_limit, expected_chi2_limit)
+        np.testing.assert_array_equal(rms_limit, expected_rms_limit)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,8 @@ CMAT is imported as:
 import cmat
 ```
 
+For new code, prefer `cmat.TransitFitWorkflow` and `cmat.TTVSimulation`. The older `cmat.Fitlpf` and `cmat.ttv_sim` names remain available for compatibility.
+
 ## Example Notebook
 
 Run the included full notebook:

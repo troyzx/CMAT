@@ -2,7 +2,9 @@ name = "fitransit"
 
 __all__ = [
     "Fitlpf",
+    "TransitFitWorkflow",
     "ttv_sim",
+    "TTVSimulation",
     "TargetConfig",
     "FitControls",
     "SimulationGrid",
@@ -12,14 +14,20 @@ __all__ = [
 
 
 def __getattr__(attribute_name):
-    if attribute_name == "Fitlpf":
-        from .base import Fitlpf
+    if attribute_name in {"Fitlpf", "TransitFitWorkflow"}:
+        from .base import Fitlpf, TransitFitWorkflow
 
-        return Fitlpf
-    if attribute_name == "ttv_sim":
-        from .ttv_sim import ttv_sim
+        return {
+            "Fitlpf": Fitlpf,
+            "TransitFitWorkflow": TransitFitWorkflow,
+        }[attribute_name]
+    if attribute_name in {"ttv_sim", "TTVSimulation"}:
+        from .ttv_sim import TTVSimulation, ttv_sim
 
-        return ttv_sim
+        return {
+            "ttv_sim": ttv_sim,
+            "TTVSimulation": TTVSimulation,
+        }[attribute_name]
     if attribute_name in {
         "TargetConfig",
         "FitControls",
