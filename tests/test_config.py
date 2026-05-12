@@ -126,6 +126,7 @@ class ConfigTests(unittest.TestCase):
                 "backend": "bayesian",
                 "bayesian": {
                     "credible_interval": 0.95,
+                    "rejection_log_bayes_factor_threshold": -5.0,
                     "posterior_sample_count": 256,
                     "warmup_draws": 128,
                     "nuisance_parameters": [
@@ -156,6 +157,8 @@ class ConfigTests(unittest.TestCase):
             BayesianScoringConfig(nuisance_parameters=())
         with self.assertRaises(ValueError):
             BayesianScoringConfig(posterior_sample_count=0)
+        with self.assertRaises(ValueError):
+            BayesianScoringConfig(rejection_log_bayes_factor_threshold=np.nan)
 
     def test_bayesian_scoring_config_rejects_unsupported_nuisance_parameters(self):
         with self.assertRaisesRegex(

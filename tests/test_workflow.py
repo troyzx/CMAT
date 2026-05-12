@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import warnings
 from dataclasses import asdict
 from unittest import mock
 
@@ -248,7 +249,9 @@ class WorkflowTests(unittest.TestCase):
             ],
         )
         simulation.ttv_results = [np.array([0.3, -0.2, 0.1, -0.25, 0.35, 0.0])]
-        simulation.get_m_crit()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            simulation.get_m_crit()
 
         manifest = workflow_manifest(config, scoring_summary=simulation.mass_thresholds)
         serialized = json.dumps(manifest, sort_keys=True)
@@ -375,6 +378,7 @@ class WorkflowTests(unittest.TestCase):
                     contract_version="stage4",
                     sampler="emcee",
                     credible_interval=0.95,
+                    rejection_log_bayes_factor_threshold=-5.0,
                     observed_transit_count=5,
                     sample_count=2,
                     requested_sample_count=2,
@@ -385,6 +389,8 @@ class WorkflowTests(unittest.TestCase):
                     mass_limits=BayesianMassLimitCurve(
                         period_ratios=np.array([1.5]),
                         evaluated_masses=np.array([0.0, 10.0]),
+                        credible_upper_bound=(10.0,),
+                        rejection_upper_bound=(10.0,),
                         upper_bound=(10.0,),
                         posterior_by_period_ratio=(
                             BayesianMassPosterior(
@@ -395,6 +401,8 @@ class WorkflowTests(unittest.TestCase):
                                 cumulative_probability=np.array([0.75, 1.0]),
                                 posterior_predictive_score=np.array([0.0, -1.0]),
                                 best_mass=None,
+                                credible_upper_bound=10.0,
+                                rejection_upper_bound=10.0,
                                 upper_bound=10.0,
                             ),
                         ),
@@ -422,6 +430,21 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(payload["sampler"], "emcee")
             np.testing.assert_array_equal(payload["posterior_samples"]["epoch_shift"], np.array([0.0, 1.0]))
             self.assertNotIn("mass_limits", payload)
+
+    def test_write_ttv_grid_cache_rejects_mismatched_epoch_shapes(self):
+        config = RunConfig(
+            target=TargetConfig("WASP-44 b"),
+            simulation=SimulationGrid(period_ratios=[1.5], companion_masses=[10.0]),
+        )
+
+        with self.assertRaises(ValueError):
+            write_ttv_grid_cache(
+                config,
+                epochs=np.array([0, 1]),
+                ttv_mcmc=np.array([0.1, -0.1, 0.0]),
+                ttv_err=np.array([0.05, 0.05, 0.05]),
+                ttv_results=np.array([[0.1, -0.1, 0.0, 0.0]]),
+            )
 
     def test_write_posterior_samples_cache_requires_posterior_samples(self):
         config = RunConfig(

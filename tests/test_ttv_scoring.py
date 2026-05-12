@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import warnings
 from unittest import mock
 
 import numpy as np
@@ -385,6 +386,27 @@ class TtvScoringTests(unittest.TestCase):
 
         self.assertEqual(context_calls, [4])
 
+    def test_get_ttv_rebound_all_rejects_non_integral_thread_count(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=prop,
+        )
+
+        with self.assertRaises(TypeError):
+            simulation.get_ttv_rebound_all(number_of_thread=3.5)
+
     def test_run_megno_allows_legacy_thread_override(self):
         prop = [
             {
@@ -534,7 +556,9 @@ class TtvScoringTests(unittest.TestCase):
             np.array([3.0, -2.0, 1.0, -2.5, 3.5, 0.0]),
         ]
 
-        chi2_limit, rms_limit = simulation.get_m_crit()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            chi2_limit, rms_limit = simulation.get_m_crit()
         summary = simulation.get_scoring_summary()
 
         np.testing.assert_array_equal(chi2_limit, np.array([]))
@@ -544,6 +568,7 @@ class TtvScoringTests(unittest.TestCase):
         self.assertEqual(summary["bayesian"]["contract_version"], "stage4_phase2")
         self.assertEqual(summary["bayesian"]["sampler"], "emcee")
         self.assertEqual(summary["bayesian"]["credible_interval"], 0.8)
+        self.assertEqual(summary["bayesian"]["rejection_log_bayes_factor_threshold"], -5.0)
         self.assertEqual(summary["bayesian"]["sample_count"], 64)
         self.assertEqual(summary["bayesian"]["requested_sample_count"], 64)
         self.assertEqual(summary["bayesian"]["warmup_draws"], 24)
@@ -551,6 +576,8 @@ class TtvScoringTests(unittest.TestCase):
         self.assertEqual(summary["bayesian"]["mass_limits"]["units"], "earth_masses")
         self.assertEqual(summary["bayesian"]["mass_limits"]["period_ratios"], [1.5])
         self.assertEqual(summary["bayesian"]["mass_limits"]["evaluated_masses"], [10.0, 20.0])
+        self.assertEqual(summary["bayesian"]["mass_limits"]["credible_upper_bound"], [10.0])
+        self.assertEqual(summary["bayesian"]["mass_limits"]["rejection_upper_bound"], [20.0])
         self.assertEqual(summary["bayesian"]["mass_limits"]["upper_bound"], [10.0])
         self.assertGreater(
             summary["bayesian"]["mass_limits"]["posterior_by_period_ratio"][0]["model_probabilities"][1],
@@ -588,7 +615,9 @@ class TtvScoringTests(unittest.TestCase):
             np.array([3.0, -2.0, 1.0, -2.5, 3.5, 0.0]),
         ]
 
-        chi2_limit, rms_limit = simulation.get_m_crit()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            chi2_limit, rms_limit = simulation.get_m_crit()
         summary = simulation.get_scoring_summary()
 
         np.testing.assert_array_equal(chi2_limit, np.array([]))
@@ -630,7 +659,9 @@ class TtvScoringTests(unittest.TestCase):
             np.array([0.3, -0.2, 0.1, -0.25, 0.35, 0.0]),
         ]
 
-        simulation.get_m_crit()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            simulation.get_m_crit()
         posterior = simulation.get_scoring_summary()["bayesian"]["mass_limits"][
             "posterior_by_period_ratio"
         ][0]
@@ -693,6 +724,8 @@ class TtvScoringTests(unittest.TestCase):
 
         posterior = result.bayesian.mass_limits.posterior_by_period_ratio[0]
         self.assertIsNone(posterior.best_mass)
+        self.assertIsNone(posterior.credible_upper_bound)
+        self.assertEqual(posterior.rejection_upper_bound, 10.0)
         self.assertIsNone(posterior.upper_bound)
         self.assertGreater(posterior.model_probabilities[0], posterior.model_probabilities[1])
         self.assertGreater(posterior.posterior_predictive_score[1], posterior.posterior_predictive_score[0])
@@ -736,6 +769,45 @@ class TtvScoringTests(unittest.TestCase):
         self.assertEqual(result.sample_count, 4)
         self.assertEqual(result.posterior_samples["baseline_offset"], [1.0, 3.0, 5.0, 7.0])
 
+    def test_get_mass_thresholds_returns_full_bayesian_result_object(self):
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2, 3, 4]),
+            ttv_mcmc=np.array([0.3, -0.2, 0.1, -0.25, 0.35]),
+            ttv_err=np.full(5, 0.05),
+            rs=np.array([1.5]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=[
+                {
+                    "orbital_distance": 1.0,
+                    "orbital_period": 1.0,
+                    "Mp": 1.0,
+                    "Ms": 1.0,
+                    "Rs": 1.0,
+                    "Rp": 1.0,
+                }
+            ],
+            scoring_backend=BayesianMassThresholdScorer(
+                config=BayesianScoringConfig(
+                    credible_interval=0.8,
+                    posterior_sample_count=64,
+                    warmup_draws=24,
+                )
+            ),
+        )
+        simulation.ttv_results = [
+            np.array([0.3, -0.2, 0.1, -0.25, 0.35, 0.0]),
+            np.array([3.0, -2.0, 1.0, -2.5, 3.5, 0.0]),
+        ]
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            simulation.get_m_crit()
+
+        thresholds = simulation.get_mass_thresholds()
+        self.assertEqual(thresholds.backend, "bayesian")
+        self.assertIsNotNone(thresholds.bayesian)
+        self.assertTrue(any("experimental Stage 4 backend" in str(w.message) for w in caught))
+
     def test_get_scoring_summary_requires_prior_scoring_run(self):
         simulation = TTVSimulation(
             epochs=np.array([0, 1, 2]),
@@ -755,6 +827,26 @@ class TtvScoringTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             simulation.get_scoring_summary()
+
+    def test_get_mass_thresholds_requires_prior_scoring_run(self):
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=[
+                {
+                    "orbital_distance": 1.0,
+                    "orbital_period": 1.0,
+                    "Mp": 1.0,
+                    "Ms": 1.0,
+                }
+            ],
+        )
+
+        with self.assertRaises(ValueError):
+            simulation.get_mass_thresholds()
 
 
 if __name__ == "__main__":

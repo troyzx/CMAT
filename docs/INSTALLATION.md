@@ -33,6 +33,8 @@ Current top-level exports include:
 - `cmat.TargetConfig`
 - `cmat.FitControls`
 - `cmat.SimulationGrid`
+- `cmat.ExecutionConfig`
+- `cmat.BayesianScoringConfig`
 - `cmat.ScoringConfig`
 - `cmat.OutputConfig`
 - `cmat.RunConfig`

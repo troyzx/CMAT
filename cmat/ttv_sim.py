@@ -1,3 +1,6 @@
+import warnings
+from numbers import Integral
+
 import rebound
 import scipy.stats
 import numpy as np
@@ -6,6 +9,7 @@ from multiprocessing import get_context
 from tqdm.auto import tqdm
 
 from .scoring import (
+    BAYESIAN_MASS_THRESHOLD_BACKEND,
     Chi2AndRmsMassThresholdScorer,
     get_chi2,
     get_rms,
@@ -57,7 +61,7 @@ class ttv_sim:
     def _resolve_worker_count(self, number_of_threads):
         if number_of_threads is None:
             number_of_threads = self.worker_count
-        if isinstance(number_of_threads, bool):
+        if isinstance(number_of_threads, bool) or not isinstance(number_of_threads, Integral):
             raise TypeError("number_of_threads must be an integer")
         number_of_threads = int(number_of_threads)
         if number_of_threads <= 0:
@@ -184,6 +188,14 @@ class ttv_sim:
         self.mass_thresholds = thresholds
         self.m_crit_chi2 = thresholds.chi2
         self.m_crit_rms = thresholds.rms
+        if thresholds.backend == BAYESIAN_MASS_THRESHOLD_BACKEND:
+            warnings.warn(
+                "Bayesian scoring is an experimental Stage 4 backend. "
+                "Use get_mass_thresholds() for the full posterior mass summary; "
+                "get_m_crit() only returns legacy chi2/RMS arrays for backward compatibility.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         return self.m_crit_chi2, self.m_crit_rms
 
@@ -192,12 +204,17 @@ class ttv_sim:
 
         return self.get_m_crit()
 
+    def get_mass_thresholds(self):
+        """Return the full MassThresholds object from the latest scoring run."""
+
+        if not hasattr(self, "mass_thresholds"):
+            raise ValueError("Run get_m_crit() before requesting mass thresholds")
+        return self.mass_thresholds
+
     def get_scoring_summary(self):
         """Return a JSON-serializable summary of the latest scoring result."""
 
-        if not hasattr(self, "mass_thresholds"):
-            raise ValueError("Run get_m_crit() before requesting a scoring summary")
-        return self.mass_thresholds.to_dict()
+        return self.get_mass_thresholds().to_dict()
 
     def simulation_m(self, par):
         r, mp2 = par  # unpack parameters

@@ -45,7 +45,7 @@ class BayesianPosteriorInterval:
 
 @dataclass(frozen=True)
 class BayesianMassPosterior:
-    """Evidence-backed model probabilities plus posterior support diagnostics for one ratio."""
+    """Experimental Bayesian mass summary for one period ratio."""
 
     period_ratio: float
     masses: np.ndarray
@@ -54,15 +54,19 @@ class BayesianMassPosterior:
     cumulative_probability: np.ndarray
     posterior_predictive_score: np.ndarray
     best_mass: float | None
+    credible_upper_bound: float | None
+    rejection_upper_bound: float | None
     upper_bound: float | None
 
 
 @dataclass(frozen=True)
 class BayesianMassLimitCurve:
-    """Posterior-oriented mass-limit surface keyed by period ratio."""
+    """Experimental Bayesian mass-summary surface keyed by period ratio."""
 
     period_ratios: np.ndarray
     evaluated_masses: np.ndarray
+    credible_upper_bound: tuple[float | None, ...]
+    rejection_upper_bound: tuple[float | None, ...]
     upper_bound: tuple[float | None, ...]
     units: str = "earth_masses"
     posterior_by_period_ratio: tuple[BayesianMassPosterior, ...] = ()
@@ -86,6 +90,7 @@ class BayesianScoringSummary:
     contract_version: str
     sampler: str
     credible_interval: float
+    rejection_log_bayes_factor_threshold: float
     observed_transit_count: int
     sample_count: int
     requested_sample_count: int
@@ -274,7 +279,7 @@ def _stable_seed(*parts) -> int:
     return int.from_bytes(digest.digest()[:8], "little") % (2**32 - 1)
 
 
-def _posterior_upper_bound(
+def _posterior_credible_upper_bound(
     model_probabilities: np.ndarray,
     masses: np.ndarray,
     credible_interval: float,
@@ -288,6 +293,20 @@ def _posterior_upper_bound(
     return None
 
 
+def _rejection_upper_bound(
+    companion_masses: np.ndarray,
+    companion_log_evidence: np.ndarray,
+    *,
+    reference_log_evidence: float,
+    rejection_log_bayes_factor_threshold: float,
+) -> float | None:
+    delta_log_evidence = np.asarray(companion_log_evidence, dtype=float) - float(reference_log_evidence)
+    for mass, delta in zip(companion_masses, delta_log_evidence, strict=True):
+        if delta < rejection_log_bayes_factor_threshold:
+            return float(mass)
+    return None
+
+
 def _relative_model_probabilities(log_evidences: list[float]) -> np.ndarray:
     evidence_array = np.asarray(log_evidences, dtype=float)
     evidence_array = evidence_array - evidence_array.max()
@@ -296,7 +315,7 @@ def _relative_model_probabilities(log_evidences: list[float]) -> np.ndarray:
 
 
 class BayesianMassThresholdScorer:
-    """Bayesian scorer with sampled nuisance parameters and posterior mass limits."""
+    """Experimental Bayesian posterior mass-summary backend with nuisance marginalization."""
 
     _JITTER_EVIDENCE_QUADRATURE_ORDER = 32
 
@@ -385,6 +404,13 @@ class BayesianMassThresholdScorer:
         prior_scales: _BayesianPriorScales,
         alignment_count: int,
     ) -> float:
+        """Return log evidence under exact epoch marginalization and log-jitter integration.
+
+        When `jitter` is active, the integration variable is `log_jitter`, so the
+        evidence uses a log-uniform prior between `prior_scales.jitter_min` and
+        `prior_scales.jitter_max`.
+        """
+
         if "epoch_shift" in nuisance_parameters:
             shift_indices = range(alignment_count)
         else:
@@ -490,6 +516,9 @@ class BayesianMassThresholdScorer:
         def unpack(theta: np.ndarray) -> tuple[int, float, float]:
             shift_index = 0
             if "epoch_shift" in name_to_index:
+                # `epoch_shift` stays discrete in the evidence calculation above.
+                # The sampler only uses this rounded latent representation for
+                # posterior diagnostics so legacy evidence semantics remain exact.
                 shift_raw = theta[name_to_index["epoch_shift"]]
                 if shift_raw < -0.49 or shift_raw > alignment_count - 0.51:
                     raise ValueError
@@ -523,6 +552,7 @@ class BayesianMassThresholdScorer:
             log_prior = 0.0
             if "baseline_offset" in name_to_index:
                 log_prior -= 0.5 * (offset / prior_scales.offset_sigma) ** 2
+                log_prior -= np.log(np.sqrt(2.0 * np.pi) * prior_scales.offset_sigma)
             return float(log_likelihood + log_prior)
 
         nwalkers = max(12, 4 * ndim)
@@ -702,7 +732,8 @@ class BayesianMassThresholdScorer:
             )
 
         posterior_by_ratio: list[BayesianMassPosterior] = []
-        upper_bounds: list[float | None] = []
+        credible_upper_bounds: list[float | None] = []
+        rejection_upper_bounds: list[float | None] = []
         reference_intervals = null_result.intervals
         reference_samples = null_result.posterior_samples
         reference_solution = {"period_ratio": None, "companion_mass": None}
@@ -724,12 +755,21 @@ class BayesianMassThresholdScorer:
             cumulative_probability = np.cumsum(model_probabilities)
             best_model_index = int(np.argmax(model_probabilities))
             best_mass = None if best_model_index == 0 else float(masses[best_model_index])
-            upper_bound = _posterior_upper_bound(
+            credible_upper_bound = _posterior_credible_upper_bound(
                 model_probabilities,
                 masses,
                 self.config.credible_interval,
             )
-            upper_bounds.append(upper_bound)
+            rejection_upper_bound = _rejection_upper_bound(
+                companion_masses,
+                np.asarray([result.log_evidence for result in ratio_results], dtype=float),
+                reference_log_evidence=float(max(log_evidences)),
+                rejection_log_bayes_factor_threshold=(
+                    self.config.rejection_log_bayes_factor_threshold
+                ),
+            )
+            credible_upper_bounds.append(credible_upper_bound)
+            rejection_upper_bounds.append(rejection_upper_bound)
             posterior_by_ratio.append(
                 BayesianMassPosterior(
                     period_ratio=float(period_ratio),
@@ -739,7 +779,9 @@ class BayesianMassThresholdScorer:
                     cumulative_probability=cumulative_probability,
                     posterior_predictive_score=np.asarray(support_scores, dtype=float),
                     best_mass=best_mass,
-                    upper_bound=upper_bound,
+                    credible_upper_bound=credible_upper_bound,
+                    rejection_upper_bound=rejection_upper_bound,
+                    upper_bound=credible_upper_bound,
                 )
             )
 
@@ -775,6 +817,9 @@ class BayesianMassThresholdScorer:
                 contract_version="stage4_phase2",
                 sampler="emcee",
                 credible_interval=self.config.credible_interval,
+                rejection_log_bayes_factor_threshold=(
+                    self.config.rejection_log_bayes_factor_threshold
+                ),
                 observed_transit_count=len(observed_ttv),
                 sample_count=self.config.posterior_sample_count,
                 requested_sample_count=self.config.posterior_sample_count,
@@ -783,7 +828,9 @@ class BayesianMassThresholdScorer:
                 mass_limits=BayesianMassLimitCurve(
                     period_ratios=period_ratios,
                     evaluated_masses=companion_masses,
-                    upper_bound=tuple(upper_bounds),
+                    credible_upper_bound=tuple(credible_upper_bounds),
+                    rejection_upper_bound=tuple(rejection_upper_bounds),
+                    upper_bound=tuple(credible_upper_bounds),
                     posterior_by_period_ratio=tuple(posterior_by_ratio),
                 ),
                 reference_solution=reference_solution,

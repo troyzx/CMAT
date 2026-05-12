@@ -255,8 +255,10 @@ def write_ttv_grid_cache(
     epochs = np.asarray(epochs, dtype=int)
     ttv_mcmc = np.asarray(ttv_mcmc, dtype=float)
     ttv_err = np.asarray(ttv_err, dtype=float)
-    if ttv_mcmc.shape != ttv_err.shape:
-        raise ValueError("ttv_mcmc and ttv_err must have matching shapes")
+    if epochs.ndim != 1 or ttv_mcmc.ndim != 1 or ttv_err.ndim != 1:
+        raise ValueError("epochs, ttv_mcmc, and ttv_err must be one-dimensional")
+    if epochs.shape != ttv_mcmc.shape or ttv_mcmc.shape != ttv_err.shape:
+        raise ValueError("epochs, ttv_mcmc, and ttv_err must have matching shapes")
 
     cache_path = _resolve_cache_path(config.output.ttv_grid_cache_path, cache_path)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -352,6 +354,7 @@ def _bayesian_cache_payload(scoring_summary: Any) -> dict[str, Any]:
             "sample_count",
             "requested_sample_count",
             "warmup_draws",
+            "rejection_log_bayes_factor_threshold",
             "nuisance_parameters",
             "reference_solution",
             "diagnostics",

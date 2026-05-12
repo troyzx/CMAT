@@ -56,6 +56,13 @@ def _require_positive_float(value: float, field_name: str) -> float:
     return value
 
 
+def _require_finite_float(value: float, field_name: str) -> float:
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f"{field_name} must be finite")
+    return value
+
+
 def _require_unit_interval(value: float, field_name: str) -> float:
     value = float(value)
     if not np.isfinite(value):
@@ -317,9 +324,10 @@ class ExecutionConfig:
 
 @dataclass(frozen=True)
 class BayesianScoringConfig:
-    """Typed controls for the Stage 4 Bayesian nuisance-parameter scorer."""
+    """Typed controls for the experimental Stage 4 Bayesian nuisance-parameter backend."""
 
     credible_interval: float = 0.997
+    rejection_log_bayes_factor_threshold: float = -5.0
     posterior_sample_count: int = 2000
     warmup_draws: int = 1000
     nuisance_parameters: tuple[str, ...] = (
@@ -334,6 +342,14 @@ class BayesianScoringConfig:
             self,
             "credible_interval",
             _require_unit_interval(self.credible_interval, "credible_interval"),
+        )
+        object.__setattr__(
+            self,
+            "rejection_log_bayes_factor_threshold",
+            _require_finite_float(
+                self.rejection_log_bayes_factor_threshold,
+                "rejection_log_bayes_factor_threshold",
+            ),
         )
         object.__setattr__(
             self,
@@ -373,6 +389,7 @@ class BayesianScoringConfig:
     def to_dict(self) -> dict[str, Any]:
         return {
             "credible_interval": self.credible_interval,
+            "rejection_log_bayes_factor_threshold": self.rejection_log_bayes_factor_threshold,
             "posterior_sample_count": self.posterior_sample_count,
             "warmup_draws": self.warmup_draws,
             "nuisance_parameters": list(self.nuisance_parameters),
