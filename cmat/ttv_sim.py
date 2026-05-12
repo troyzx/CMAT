@@ -1,3 +1,6 @@
+import warnings
+from numbers import Integral
+
 import rebound
 import scipy.stats
 import numpy as np
@@ -5,7 +8,12 @@ from matplotlib import pyplot as plt
 from multiprocessing import get_context
 from tqdm.auto import tqdm
 
-from .scoring import get_chi2, get_chi2_v, get_rms, get_rms_v
+from .scoring import (
+    BAYESIAN_MASS_THRESHOLD_BACKEND,
+    Chi2AndRmsMassThresholdScorer,
+    get_chi2,
+    get_rms,
+)
 
 mj_to_ms = 9.5e-4
 me_to_ms = 3.0e-6
@@ -28,7 +36,7 @@ and find potentially stable configurations.
 
 
 class ttv_sim:
-    def __init__(self, epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80):
+    def __init__(self, epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80, scoring_backend=None):
         self.epochs = epochs  # The epochs at which to calculate the TTVs
         self.ttv_mcmc = ttv_mcmc  # The TTVs obtained from MCMC fitting
         self.ttv_err = ttv_err  # The errors on the MCMC TTVs
@@ -44,7 +52,26 @@ class ttv_sim:
         self.ms = prop[0]["Ms"]
         self.megno_dt = 1 / 20
         self.megno_runtime = 1e4
+        self.worker_count = 1
+        self.start_method = "fork"
+        self.show_progress = True
         self.ttv_rebound = []
+        self.scoring_backend = scoring_backend or Chi2AndRmsMassThresholdScorer()
+
+    def _resolve_worker_count(self, number_of_threads):
+        if number_of_threads is None:
+            number_of_threads = self.worker_count
+        if isinstance(number_of_threads, bool) or not isinstance(number_of_threads, Integral):
+            raise TypeError("number_of_threads must be an integer")
+        number_of_threads = int(number_of_threads)
+        if number_of_threads <= 0:
+            raise ValueError("number_of_threads must be positive")
+        return number_of_threads
+
+    def _progress_iterator(self, iterator, *, total):
+        if self.show_progress:
+            return tqdm(iterator, total=total)
+        return iterator
 
     def calculate_rebound(self, par, e1=0, e2=0, inc1=0, inc2=0, f1=0, f2=0):
         r, mp2 = par
@@ -119,6 +146,11 @@ class ttv_sim:
                     sim.integrate(sim.t + 5e-5)
                 except (rebound.Escape, rebound.Collision):
                     break
+        if i < N:
+            # Early termination means the transit series is not physically usable
+            # as a scoring input. Return an explicit invalid series instead of a
+            # zero-filled artifact so downstream scorers can exclude it cleanly.
+            return np.full(N, np.nan)
         c, m = np.linalg.lstsq(
             np.vstack([np.ones(N), range(N)]).T, transittimes, rcond=None
         )[0]
@@ -127,61 +159,43 @@ class ttv_sim:
         )
         return ttv_rebound
 
-    def get_ttv_rebound_all(self, number_of_thread):
+    def get_ttv_rebound_all(self, number_of_thread=None):
         parameters = []
         for mp2 in self.mp2s:
             for r in self.rs:
                 parameters.append((r, mp2))
-        with get_context("fork").Pool(number_of_thread) as p:
+        with get_context(self.start_method).Pool(
+            self._resolve_worker_count(number_of_thread)
+        ) as p:
             self.ttv_results = list(
-                tqdm(
+                self._progress_iterator(
                     p.imap(self.calculate_rebound, parameters),
-                    total=len(parameters))
+                    total=len(parameters),
+                )
             )
         self.ttv_rebound = np.array(self.ttv_results)
         return self.ttv_rebound
 
     def get_m_crit(self):
-        epoch = self.epochs
-        ttv_mcmc = self.ttv_mcmc
-        ttv_err = self.ttv_err
-        rs = self.rs
-        mp2s = self.mp2s
-        ttv_results = self.ttv_results
-
-        chi2 = get_chi2_v(
-            ttv_rebound=np.array(self.ttv_results),
-            epoch=epoch,
-            ttv_mcmc=ttv_mcmc,
-            ttv_err=ttv_err,
+        thresholds = self.scoring_backend.critical_masses(
+            ttv_results=self.ttv_results,
+            epoch=self.epochs,
+            ttv_mcmc=self.ttv_mcmc,
+            ttv_err=self.ttv_err,
+            period_ratios=self.rs,
+            companion_masses=self.mp2s,
         )
-        chi2_crit = scipy.stats.chi2.ppf(0.997, len(ttv_mcmc))
-
-        rms = get_rms_v(ttv_results)
-        rms_crit = np.sqrt(np.mean(ttv_mcmc**2))
-
-        chi2_2d = np.array(chi2).reshape(len(mp2s), len(rs))
-        rms_2d = np.array(rms).reshape(len(mp2s), len(rs))
-        valid_2d = rms_2d != 0
-
-        def first_rejected_mass(score_2d, crit):
-            rejected_masses = []
-            for r_idx, _ in enumerate(rs):
-                for mp2_idx, mp2 in enumerate(mp2s):
-                    if not valid_2d[mp2_idx, r_idx]:
-                        continue
-                    if not np.isfinite(score_2d[mp2_idx, r_idx]):
-                        continue
-                    if score_2d[mp2_idx, r_idx] >= crit:
-                        rejected_masses.append(mp2)
-                        break
-            return np.array(rejected_masses)
-
-        m_crit_chi2 = first_rejected_mass(chi2_2d, chi2_crit)
-        m_crit_rms = first_rejected_mass(rms_2d, rms_crit)
-
-        self.m_crit_chi2 = m_crit_chi2
-        self.m_crit_rms = m_crit_rms
+        self.mass_thresholds = thresholds
+        self.m_crit_chi2 = thresholds.chi2
+        self.m_crit_rms = thresholds.rms
+        if thresholds.backend == BAYESIAN_MASS_THRESHOLD_BACKEND:
+            warnings.warn(
+                "Bayesian scoring is an experimental Stage 4 backend. "
+                "Use get_mass_thresholds() for the full posterior mass summary; "
+                "get_m_crit() only returns legacy chi2/RMS arrays for backward compatibility.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         return self.m_crit_chi2, self.m_crit_rms
 
@@ -189,6 +203,18 @@ class ttv_sim:
         """Return the first rejected companion masses for the current grid."""
 
         return self.get_m_crit()
+
+    def get_mass_thresholds(self):
+        """Return the full MassThresholds object from the latest scoring run."""
+
+        if not hasattr(self, "mass_thresholds"):
+            raise ValueError("Run get_m_crit() before requesting mass thresholds")
+        return self.mass_thresholds
+
+    def get_scoring_summary(self):
+        """Return a JSON-serializable summary of the latest scoring result."""
+
+        return self.get_mass_thresholds().to_dict()
 
     def simulation_m(self, par):
         r, mp2 = par  # unpack parameters
@@ -224,7 +250,7 @@ class ttv_sim:
         # returning large MEGNO.
 
     # Run the MEGNO simulations for all parameter combinations
-    def run_megno(self, number_of_threads):
+    def run_megno(self, number_of_threads=None):
         rs = self.rs
         mp2s = self.mp2s
         parameters = []
@@ -232,12 +258,14 @@ class ttv_sim:
             for r in rs:
                 parameters.append((r, mp2))
 
-        with get_context("fork").Pool(number_of_threads) as p:
+        with get_context(self.start_method).Pool(
+            self._resolve_worker_count(number_of_threads)
+        ) as p:
             self.megno_results = list(
-                tqdm(
+                self._progress_iterator(
                     p.imap(self.simulation_m, parameters),
-                    total=len(parameters)
-                    )
+                    total=len(parameters),
+                )
             )
         return self.megno_results
 
