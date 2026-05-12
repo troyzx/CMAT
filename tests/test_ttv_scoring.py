@@ -579,6 +579,10 @@ class TtvScoringTests(unittest.TestCase):
         self.assertEqual(summary["bayesian"]["mass_limits"]["credible_upper_bound"], [10.0])
         self.assertEqual(summary["bayesian"]["mass_limits"]["rejection_upper_bound"], [20.0])
         self.assertEqual(summary["bayesian"]["mass_limits"]["upper_bound"], [10.0])
+        self.assertEqual(
+            summary["bayesian"]["mass_limits"]["upper_bound"],
+            summary["bayesian"]["mass_limits"]["credible_upper_bound"],
+        )
         self.assertGreater(
             summary["bayesian"]["mass_limits"]["posterior_by_period_ratio"][0]["model_probabilities"][1],
             0.9,
@@ -727,9 +731,76 @@ class TtvScoringTests(unittest.TestCase):
         self.assertIsNone(posterior.credible_upper_bound)
         self.assertEqual(posterior.rejection_upper_bound, 10.0)
         self.assertIsNone(posterior.upper_bound)
+        self.assertEqual(posterior.upper_bound, posterior.credible_upper_bound)
         self.assertGreater(posterior.model_probabilities[0], posterior.model_probabilities[1])
         self.assertGreater(posterior.posterior_predictive_score[1], posterior.posterior_predictive_score[0])
         np.testing.assert_allclose(posterior.log_evidence, np.array([0.0, -8.0, -9.0]))
+
+    def test_bayesian_rejection_upper_bound_scans_only_high_mass_side_of_best_model(self):
+        scorer = BayesianMassThresholdScorer(
+            config=BayesianScoringConfig(
+                posterior_sample_count=8,
+                warmup_draws=4,
+                nuisance_parameters=("epoch_shift",),
+            )
+        )
+        fake_result = scoring._BayesianModelResult
+        neutral_interval = {"epoch_shift": scoring.BayesianPosteriorInterval(0.0, 0.0, 0.0)}
+
+        with mock.patch.object(
+            BayesianMassThresholdScorer,
+            "_sample_model",
+            side_effect=[
+                fake_result(
+                    support_score=0.0,
+                    log_evidence=-12.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+                fake_result(
+                    support_score=-8.0,
+                    log_evidence=-8.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+                fake_result(
+                    support_score=0.0,
+                    log_evidence=0.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+                fake_result(
+                    support_score=-7.0,
+                    log_evidence=-7.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+            ],
+        ):
+            result = scorer.critical_masses(
+                ttv_results=[
+                    np.zeros(3, dtype=float),
+                    np.ones(3, dtype=float),
+                    np.full(3, 2.0, dtype=float),
+                ],
+                epoch=np.array([0, 1, 2], dtype=int),
+                ttv_mcmc=np.array([0.0, 0.0, 0.0], dtype=float),
+                ttv_err=np.ones(3, dtype=float),
+                period_ratios=np.array([1.2], dtype=float),
+                companion_masses=np.array([10.0, 20.0, 30.0], dtype=float),
+            )
+
+        posterior = result.bayesian.mass_limits.posterior_by_period_ratio[0]
+        self.assertEqual(posterior.best_mass, 20.0)
+        self.assertEqual(posterior.rejection_upper_bound, 30.0)
 
     def test_bayesian_backend_retains_representative_posterior_draws(self):
         class FakeSampler:

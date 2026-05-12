@@ -159,6 +159,8 @@ class ConfigTests(unittest.TestCase):
             BayesianScoringConfig(posterior_sample_count=0)
         with self.assertRaises(ValueError):
             BayesianScoringConfig(rejection_log_bayes_factor_threshold=np.nan)
+        with self.assertRaises(ValueError):
+            BayesianScoringConfig(rejection_log_bayes_factor_threshold=1.0)
 
     def test_bayesian_scoring_config_rejects_unsupported_nuisance_parameters(self):
         with self.assertRaisesRegex(

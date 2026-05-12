@@ -351,6 +351,8 @@ class BayesianScoringConfig:
                 "rejection_log_bayes_factor_threshold",
             ),
         )
+        if self.rejection_log_bayes_factor_threshold > 0.0:
+            raise ValueError("rejection_log_bayes_factor_threshold must be less than or equal to 0")
         object.__setattr__(
             self,
             "posterior_sample_count",

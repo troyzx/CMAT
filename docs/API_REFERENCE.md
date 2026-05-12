@@ -175,6 +175,8 @@ Typed controls for the experimental Stage 4 Bayesian mass-summary backend.
 
 The default path remains `chi2_rms`. The Bayesian branch is currently an experimental backend: it runs an `emcee`-based nuisance-parameter sampler for posterior diagnostics, computes model probabilities from marginal-likelihood evidence, reports `credible_upper_bound` from cumulative posterior probability, and reports `rejection_upper_bound` from the configured log-evidence ratio threshold.
 
+`epoch_shift` is marginalized exactly in the evidence calculation. The rounded sampler representation is used only for posterior diagnostics and should not be interpreted as a continuous physical parameter.
+
 ### `RunConfig`
 
 Composite configuration for fitting and simulation runs.

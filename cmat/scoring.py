@@ -45,7 +45,12 @@ class BayesianPosteriorInterval:
 
 @dataclass(frozen=True)
 class BayesianMassPosterior:
-    """Experimental Bayesian mass summary for one period ratio."""
+    """Experimental Bayesian mass summary for one period ratio.
+
+    `upper_bound` is a backward-compatible alias for `credible_upper_bound`.
+    New code should prefer `credible_upper_bound` or `rejection_upper_bound`
+    explicitly.
+    """
 
     period_ratio: float
     masses: np.ndarray
@@ -61,7 +66,12 @@ class BayesianMassPosterior:
 
 @dataclass(frozen=True)
 class BayesianMassLimitCurve:
-    """Experimental Bayesian mass-summary surface keyed by period ratio."""
+    """Experimental Bayesian mass-summary surface keyed by period ratio.
+
+    `upper_bound` is a backward-compatible alias for `credible_upper_bound`.
+    New code should prefer `credible_upper_bound` or `rejection_upper_bound`
+    explicitly.
+    """
 
     period_ratios: np.ndarray
     evaluated_masses: np.ndarray
@@ -294,16 +304,23 @@ def _posterior_credible_upper_bound(
 
 
 def _rejection_upper_bound(
-    companion_masses: np.ndarray,
-    companion_log_evidence: np.ndarray,
+    masses: np.ndarray,
+    log_evidence: np.ndarray,
     *,
-    reference_log_evidence: float,
     rejection_log_bayes_factor_threshold: float,
 ) -> float | None:
-    delta_log_evidence = np.asarray(companion_log_evidence, dtype=float) - float(reference_log_evidence)
-    for mass, delta in zip(companion_masses, delta_log_evidence, strict=True):
-        if delta < rejection_log_bayes_factor_threshold:
-            return float(mass)
+    masses = np.asarray(masses, dtype=float)
+    log_evidence = np.asarray(log_evidence, dtype=float)
+    reference_index = int(np.argmax(log_evidence))
+    if reference_index == 0:
+        search_indices = range(1, len(masses))
+    else:
+        search_indices = range(reference_index + 1, len(masses))
+
+    for index in search_indices:
+        delta_log_evidence = float(log_evidence[index] - log_evidence[reference_index])
+        if delta_log_evidence < rejection_log_bayes_factor_threshold:
+            return float(masses[index])
     return None
 
 
@@ -518,7 +535,8 @@ class BayesianMassThresholdScorer:
             if "epoch_shift" in name_to_index:
                 # `epoch_shift` stays discrete in the evidence calculation above.
                 # The sampler only uses this rounded latent representation for
-                # posterior diagnostics so legacy evidence semantics remain exact.
+                # posterior diagnostics, so it should not be interpreted as a
+                # continuous physical parameter.
                 shift_raw = theta[name_to_index["epoch_shift"]]
                 if shift_raw < -0.49 or shift_raw > alignment_count - 0.51:
                     raise ValueError
@@ -761,9 +779,8 @@ class BayesianMassThresholdScorer:
                 self.config.credible_interval,
             )
             rejection_upper_bound = _rejection_upper_bound(
-                companion_masses,
-                np.asarray([result.log_evidence for result in ratio_results], dtype=float),
-                reference_log_evidence=float(max(log_evidences)),
+                masses,
+                np.asarray(log_evidences, dtype=float),
                 rejection_log_bayes_factor_threshold=(
                     self.config.rejection_log_bayes_factor_threshold
                 ),
