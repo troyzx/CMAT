@@ -19,6 +19,7 @@ import numpy as np
 SUPPORTED_BAYESIAN_NUISANCE_PARAMETERS = frozenset(
     {"epoch_shift", "baseline_offset", "jitter"}
 )
+SUPPORTED_MULTIPROCESSING_START_METHODS = frozenset({"fork", "spawn", "forkserver"})
 
 
 def _require_text(value: str, field_name: str) -> str:
@@ -251,6 +252,22 @@ class OutputConfig:
     def metadata_path(self) -> Path:
         return self.run_dir / "run_metadata.json"
 
+    @property
+    def cache_dir(self) -> Path:
+        return self.run_dir / "cache"
+
+    @property
+    def ttv_grid_cache_path(self) -> Path:
+        return self.cache_dir / "ttv_grid.npz"
+
+    @property
+    def megno_grid_cache_path(self) -> Path:
+        return self.cache_dir / "megno_grid.npz"
+
+    @property
+    def posterior_samples_cache_path(self) -> Path:
+        return self.cache_dir / "posterior_samples.json"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "root_dir": str(self.root_dir),
@@ -259,6 +276,42 @@ class OutputConfig:
             "tables_dir": str(self.tables_dir),
             "figures_dir": str(self.figures_dir),
             "metadata_path": str(self.metadata_path),
+            "cache_dir": str(self.cache_dir),
+            "ttv_grid_cache_path": str(self.ttv_grid_cache_path),
+            "megno_grid_cache_path": str(self.megno_grid_cache_path),
+            "posterior_samples_cache_path": str(self.posterior_samples_cache_path),
+        }
+
+
+@dataclass(frozen=True)
+class ExecutionConfig:
+    """Explicit runtime controls for local and batch-style simulation execution."""
+
+    worker_count: int = 1
+    start_method: str = "fork"
+    show_progress: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "worker_count",
+            _require_positive_int(self.worker_count, "worker_count"),
+        )
+        start_method = _require_text(self.start_method, "start_method")
+        if start_method not in SUPPORTED_MULTIPROCESSING_START_METHODS:
+            raise ValueError(
+                "start_method must be one of "
+                + ", ".join(sorted(SUPPORTED_MULTIPROCESSING_START_METHODS))
+            )
+        object.__setattr__(self, "start_method", start_method)
+        if not isinstance(self.show_progress, bool):
+            raise TypeError("show_progress must be a boolean")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "worker_count": self.worker_count,
+            "start_method": self.start_method,
+            "show_progress": self.show_progress,
         }
 
 
@@ -371,6 +424,7 @@ class RunConfig:
     simulation: SimulationGrid | None = None
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    execution: ExecutionConfig = field(default_factory=ExecutionConfig)
     random_seed: int | None = None
 
     def __post_init__(self) -> None:
@@ -384,6 +438,8 @@ class RunConfig:
             raise TypeError("scoring must be a ScoringConfig")
         if not isinstance(self.output, OutputConfig):
             raise TypeError("output must be an OutputConfig")
+        if not isinstance(self.execution, ExecutionConfig):
+            raise TypeError("execution must be an ExecutionConfig")
         if self.random_seed is not None:
             object.__setattr__(
                 self,
@@ -398,5 +454,6 @@ class RunConfig:
             "simulation": None if self.simulation is None else self.simulation.to_dict(),
             "scoring": self.scoring.to_dict(),
             "output": self.output.to_dict(),
+            "execution": self.execution.to_dict(),
             "random_seed": self.random_seed,
         }

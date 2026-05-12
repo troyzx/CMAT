@@ -112,8 +112,11 @@ The new configuration layer also introduces a JSON-serializable manifest shape v
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `config` | object | yes | Serialized `RunConfig` |
+| `code_version` | object | no | Git commit and dirty-state metadata when available |
 | `dependency_versions` | object | no | Version map for pinned runtime dependencies |
+| `runtime` | object | no | Timestamp, Python/platform, cwd, and selected runtime environment |
 | `notes` | object | no | Free-form run notes |
+| `scoring_summary` | object | no | Serialized scoring result surface |
 
 The associated output-path helper lives in `OutputConfig.metadata_path`, which defaults to:
 
@@ -121,7 +124,19 @@ The associated output-path helper lives in `OutputConfig.metadata_path`, which d
 artifacts/run_metadata.json
 ```
 
-CMAT does not yet automatically persist this manifest for every run, but this is the intended shape for future reproducible run metadata.
+CMAT can now persist this manifest explicitly via `cmat.workflow.write_workflow_manifest(...)`. The notebook-driven workflow still does not auto-write it on every path, but the serialized shape and default output location are now part of the library boundary.
+
+## Cache artifact shapes
+
+Stage 4 also adds explicit cache helpers for expensive intermediate products.
+
+| Path | Format | Contents |
+| --- | --- | --- |
+| `artifacts/cache/ttv_grid.npz` | NumPy compressed archive | `period_ratios`, `companion_masses`, `epochs`, observed `ttv_mcmc` / `ttv_err`, and cached `ttv_results` |
+| `artifacts/cache/megno_grid.npz` | NumPy compressed archive | `period_ratios`, `companion_masses`, and cached `megno_results` |
+| `artifacts/cache/posterior_samples.json` | JSON | Retained Bayesian posterior samples plus compact sampler/reference metadata |
+
+When `run_name` is set, these files live under `artifacts/<run_name>/cache/`.
 
 ## Stability note
 

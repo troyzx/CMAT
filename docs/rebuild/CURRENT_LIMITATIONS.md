@@ -12,8 +12,9 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 ## Data and Reproducibility
 
-- The primary workflow is notebook-driven and does not yet save a formal provenance manifest.
+- The primary workflow is notebook-driven and does not yet auto-save a provenance manifest on every path, although `cmat.workflow.write_workflow_manifest(...)` now persists a formal run record when called explicitly.
 - Typed configuration objects and thin workflow adapters now represent target metadata, fitting controls, simulation grids, output paths, and random seeds; the full notebook workflow is not yet decomposed into reusable library steps or saved as a formal run record.
+- Cache reuse is now available through explicit workflow helpers for TTV grids, MEGNO grids, and retained Bayesian posterior samples, but the notebook path does not yet auto-detect or auto-populate those caches.
 - The example relies on external astronomy services for fresh metadata or downloads when cached data are not used.
 - The cached WASP-44 b data are useful for baseline tests, but they are not a general fixture strategy.
 
@@ -30,6 +31,7 @@ This file separates known limitations from the rebuild roadmap. It should be upd
 
 - Multiprocessing uses `fork`, which should be reviewed before claiming cross-platform support.
 - Runtime and memory use are not benchmarked across grid sizes.
+- Worker count, multiprocessing start method, and progress visibility are now explicit typed runtime controls, but more detailed sampler/runtime tuning is still split across legacy call sites and scorer-specific settings.
 - Plotting imports can trigger Matplotlib cache behavior unless a writable `MPLCONFIGDIR` is configured.
 
 ## Scientific Scope

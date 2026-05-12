@@ -8,6 +8,7 @@ __all__ = [
     "TargetConfig",
     "FitControls",
     "SimulationGrid",
+    "ExecutionConfig",
     "BayesianScoringConfig",
     "ScoringConfig",
     "OutputConfig",
@@ -34,6 +35,7 @@ def __getattr__(attribute_name):
         "TargetConfig",
         "FitControls",
         "SimulationGrid",
+        "ExecutionConfig",
         "BayesianScoringConfig",
         "ScoringConfig",
         "OutputConfig",
@@ -41,6 +43,7 @@ def __getattr__(attribute_name):
     }:
         from .config import (
             BayesianScoringConfig,
+            ExecutionConfig,
             FitControls,
             OutputConfig,
             RunConfig,
@@ -53,6 +56,7 @@ def __getattr__(attribute_name):
             "TargetConfig": TargetConfig,
             "FitControls": FitControls,
             "SimulationGrid": SimulationGrid,
+            "ExecutionConfig": ExecutionConfig,
             "BayesianScoringConfig": BayesianScoringConfig,
             "ScoringConfig": ScoringConfig,
             "OutputConfig": OutputConfig,

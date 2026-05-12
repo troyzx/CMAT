@@ -237,6 +237,200 @@ class TtvScoringTests(unittest.TestCase):
         np.testing.assert_array_equal(chi2_limit, expected_chi2_limit)
         np.testing.assert_array_equal(rms_limit, expected_rms_limit)
 
+    def test_get_ttv_rebound_all_uses_configured_execution_controls(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=prop,
+        )
+        simulation.worker_count = 2
+        simulation.start_method = "spawn"
+        simulation.show_progress = False
+
+        context_calls = []
+
+        class FakePool:
+            def __init__(self, process_count):
+                self.process_count = process_count
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def imap(self, func, parameters):
+                return iter([np.array([0.1, 0.2, 0.3, 0.4]) for _ in parameters])
+
+        class FakeContext:
+            def Pool(self, process_count):
+                context_calls.append(process_count)
+                return FakePool(process_count)
+
+        with mock.patch("cmat.ttv_sim.get_context", return_value=FakeContext()) as get_context_mock, mock.patch(
+            "cmat.ttv_sim.tqdm"
+        ) as tqdm_mock:
+            result = simulation.get_ttv_rebound_all()
+
+        get_context_mock.assert_called_once_with("spawn")
+        tqdm_mock.assert_not_called()
+        self.assertEqual(context_calls, [2])
+        self.assertEqual(result.shape, (1, 4))
+
+    def test_run_megno_uses_configured_execution_controls(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=prop,
+        )
+        simulation.worker_count = 3
+        simulation.start_method = "forkserver"
+        simulation.show_progress = False
+
+        context_calls = []
+
+        class FakePool:
+            def __init__(self, process_count):
+                self.process_count = process_count
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def imap(self, func, parameters):
+                return iter([2.1 for _ in parameters])
+
+        class FakeContext:
+            def Pool(self, process_count):
+                context_calls.append(process_count)
+                return FakePool(process_count)
+
+        with mock.patch("cmat.ttv_sim.get_context", return_value=FakeContext()) as get_context_mock, mock.patch(
+            "cmat.ttv_sim.tqdm"
+        ) as tqdm_mock:
+            result = simulation.run_megno()
+
+        get_context_mock.assert_called_once_with("forkserver")
+        tqdm_mock.assert_not_called()
+        self.assertEqual(context_calls, [3])
+        self.assertEqual(result, [2.1])
+
+    def test_get_ttv_rebound_all_allows_legacy_thread_override(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=prop,
+        )
+        simulation.worker_count = 8
+        simulation.start_method = "spawn"
+        simulation.show_progress = False
+
+        context_calls = []
+
+        class FakePool:
+            def __init__(self, process_count):
+                self.process_count = process_count
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def imap(self, func, parameters):
+                return iter([np.array([0.1, 0.2, 0.3, 0.4]) for _ in parameters])
+
+        class FakeContext:
+            def Pool(self, process_count):
+                context_calls.append(process_count)
+                return FakePool(process_count)
+
+        with mock.patch("cmat.ttv_sim.get_context", return_value=FakeContext()):
+            simulation.get_ttv_rebound_all(number_of_thread=4)
+
+        self.assertEqual(context_calls, [4])
+
+    def test_run_megno_allows_legacy_thread_override(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0]),
+            prop=prop,
+        )
+        simulation.worker_count = 8
+        simulation.start_method = "spawn"
+        simulation.show_progress = False
+
+        context_calls = []
+
+        class FakePool:
+            def __init__(self, process_count):
+                self.process_count = process_count
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def imap(self, func, parameters):
+                return iter([2.1 for _ in parameters])
+
+        class FakeContext:
+            def Pool(self, process_count):
+                context_calls.append(process_count)
+                return FakePool(process_count)
+
+        with mock.patch("cmat.ttv_sim.get_context", return_value=FakeContext()):
+            simulation.run_megno(number_of_threads=4)
+
+        self.assertEqual(context_calls, [4])
+
     def test_get_m_crit_can_delegate_to_custom_scoring_backend(self):
         class StubScoringBackend:
             def __init__(self):

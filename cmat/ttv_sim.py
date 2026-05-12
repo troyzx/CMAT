@@ -48,8 +48,26 @@ class ttv_sim:
         self.ms = prop[0]["Ms"]
         self.megno_dt = 1 / 20
         self.megno_runtime = 1e4
+        self.worker_count = 1
+        self.start_method = "fork"
+        self.show_progress = True
         self.ttv_rebound = []
         self.scoring_backend = scoring_backend or Chi2AndRmsMassThresholdScorer()
+
+    def _resolve_worker_count(self, number_of_threads):
+        if number_of_threads is None:
+            number_of_threads = self.worker_count
+        if isinstance(number_of_threads, bool):
+            raise TypeError("number_of_threads must be an integer")
+        number_of_threads = int(number_of_threads)
+        if number_of_threads <= 0:
+            raise ValueError("number_of_threads must be positive")
+        return number_of_threads
+
+    def _progress_iterator(self, iterator, *, total):
+        if self.show_progress:
+            return tqdm(iterator, total=total)
+        return iterator
 
     def calculate_rebound(self, par, e1=0, e2=0, inc1=0, inc2=0, f1=0, f2=0):
         r, mp2 = par
@@ -137,16 +155,19 @@ class ttv_sim:
         )
         return ttv_rebound
 
-    def get_ttv_rebound_all(self, number_of_thread):
+    def get_ttv_rebound_all(self, number_of_thread=None):
         parameters = []
         for mp2 in self.mp2s:
             for r in self.rs:
                 parameters.append((r, mp2))
-        with get_context("fork").Pool(number_of_thread) as p:
+        with get_context(self.start_method).Pool(
+            self._resolve_worker_count(number_of_thread)
+        ) as p:
             self.ttv_results = list(
-                tqdm(
+                self._progress_iterator(
                     p.imap(self.calculate_rebound, parameters),
-                    total=len(parameters))
+                    total=len(parameters),
+                )
             )
         self.ttv_rebound = np.array(self.ttv_results)
         return self.ttv_rebound
@@ -212,7 +233,7 @@ class ttv_sim:
         # returning large MEGNO.
 
     # Run the MEGNO simulations for all parameter combinations
-    def run_megno(self, number_of_threads):
+    def run_megno(self, number_of_threads=None):
         rs = self.rs
         mp2s = self.mp2s
         parameters = []
@@ -220,12 +241,14 @@ class ttv_sim:
             for r in rs:
                 parameters.append((r, mp2))
 
-        with get_context("fork").Pool(number_of_threads) as p:
+        with get_context(self.start_method).Pool(
+            self._resolve_worker_count(number_of_threads)
+        ) as p:
             self.megno_results = list(
-                tqdm(
+                self._progress_iterator(
                     p.imap(self.simulation_m, parameters),
-                    total=len(parameters)
-                    )
+                    total=len(parameters),
+                )
             )
         return self.megno_results
 

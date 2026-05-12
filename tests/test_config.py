@@ -5,6 +5,7 @@ import numpy as np
 
 from cmat.config import (
     BayesianScoringConfig,
+    ExecutionConfig,
     FitControls,
     OutputConfig,
     RunConfig,
@@ -69,11 +70,44 @@ class ConfigTests(unittest.TestCase):
             output.metadata_path.as_posix(),
             "artifacts/wasp44-smoke/run_metadata.json",
         )
+        self.assertEqual(output.cache_dir.as_posix(), "artifacts/wasp44-smoke/cache")
+        self.assertEqual(
+            output.ttv_grid_cache_path.as_posix(),
+            "artifacts/wasp44-smoke/cache/ttv_grid.npz",
+        )
+        self.assertEqual(
+            output.megno_grid_cache_path.as_posix(),
+            "artifacts/wasp44-smoke/cache/megno_grid.npz",
+        )
+        self.assertEqual(
+            output.posterior_samples_cache_path.as_posix(),
+            "artifacts/wasp44-smoke/cache/posterior_samples.json",
+        )
 
     def test_scoring_config_is_json_serializable(self):
         scoring = ScoringConfig()
 
         self.assertEqual(scoring.to_dict(), {"backend": "chi2_rms"})
+
+    def test_execution_config_serializes_runtime_controls(self):
+        execution = ExecutionConfig(worker_count=4, start_method="spawn", show_progress=False)
+
+        self.assertEqual(
+            execution.to_dict(),
+            {
+                "worker_count": 4,
+                "start_method": "spawn",
+                "show_progress": False,
+            },
+        )
+
+    def test_execution_config_rejects_invalid_runtime_controls(self):
+        with self.assertRaises(ValueError):
+            ExecutionConfig(worker_count=0)
+        with self.assertRaises(ValueError):
+            ExecutionConfig(start_method="thread")
+        with self.assertRaises(TypeError):
+            ExecutionConfig(show_progress="yes")
 
     def test_scoring_config_supports_bayesian_contract(self):
         scoring = ScoringConfig(
@@ -149,6 +183,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('"random_seed": 42', serialized)
         self.assertIn('"parameter_count": 1', serialized)
         self.assertIn('"backend": "chi2_rms"', serialized)
+        self.assertIn('"worker_count": 1', serialized)
 
     def test_run_config_validates_seed(self):
         with self.assertRaises(ValueError):
@@ -157,6 +192,10 @@ class ConfigTests(unittest.TestCase):
     def test_run_config_validates_scoring_type(self):
         with self.assertRaises(TypeError):
             RunConfig(target=TargetConfig("WASP-44 b"), scoring="chi2_rms")
+
+    def test_run_config_validates_execution_type(self):
+        with self.assertRaises(TypeError):
+            RunConfig(target=TargetConfig("WASP-44 b"), execution="spawn")
 
 
 if __name__ == "__main__":

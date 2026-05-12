@@ -30,7 +30,7 @@ Example:
 import numpy as np
 
 from cmat.config import OutputConfig, RunConfig, ScoringConfig, SimulationGrid, TargetConfig
-from cmat.workflow import make_ttv_simulation, workflow_manifest
+from cmat.workflow import make_ttv_simulation, workflow_manifest, write_workflow_manifest
 
 config = RunConfig(
     target=TargetConfig("WASP-44 b"),
@@ -54,6 +54,7 @@ simulation = make_ttv_simulation(
     prop=[{"orbital_distance": 1.0, "orbital_period": 1.0, "Mp": 1.0, "Ms": 1.0, "Rs": 1.0, "Rp": 1.0}],
 )
 manifest = workflow_manifest(config, dependency_versions={"numpy": "2.x"})
+write_workflow_manifest(config, scoring_summary={"backend": "chi2_rms"})
 ```
 
 ## Configuration objects
@@ -125,6 +126,20 @@ Derived properties:
 - `tables_dir` - `run_dir / "tables"`
 - `figures_dir` - `run_dir / "figures"`
 - `metadata_path` - `run_dir / "run_metadata.json"`
+- `cache_dir` - `run_dir / "cache"`
+- `ttv_grid_cache_path` - `cache_dir / "ttv_grid.npz"`
+- `megno_grid_cache_path` - `cache_dir / "megno_grid.npz"`
+- `posterior_samples_cache_path` - `cache_dir / "posterior_samples.json"`
+
+### `ExecutionConfig`
+
+Explicit runtime controls for local and batch-style simulation execution.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `worker_count` | `int` | `1` | Shared process-count default for TTV and MEGNO grid evaluation |
+| `start_method` | `str` | `"fork"` | Supported values: `"fork"`, `"spawn"`, `"forkserver"` |
+| `show_progress` | `bool` | `True` | Enables or suppresses `tqdm` progress output |
 
 ### `ScoringConfig`
 
@@ -160,6 +175,7 @@ Composite configuration for fitting and simulation runs.
 | `simulation` | `SimulationGrid \| None` | `None` | required by `make_ttv_simulation(...)` |
 | `scoring` | `ScoringConfig` | default factory | typed scoring backend selector |
 | `output` | `OutputConfig` | default factory | artifact destinations |
+| `execution` | `ExecutionConfig` | default factory | explicit runtime controls for local and batch execution |
 | `random_seed` | `int \| None` | `None` | must be non-negative if provided |
 
 `RunConfig.to_dict()` returns a fully JSON-serializable nested configuration object.
@@ -173,7 +189,14 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 | `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by the fitting workflow |
 | `make_fit_lpf(target)` | `TransitFitWorkflow` | Builds a transit-fitting object from a typed target config |
 | `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop, scoring_backend=None)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays and selects the configured default scorer |
-| `workflow_manifest(config, *, dependency_versions=None, notes=None, scoring_summary=None)` | `dict` | Builds a JSON-serializable run manifest |
+| `workflow_manifest(config, *, dependency_versions=None, notes=None, scoring_summary=None, code_version=None, runtime=None)` | `dict` | Builds a JSON-serializable run manifest |
+| `write_workflow_manifest(config, *, dependency_versions=None, notes=None, scoring_summary=None, code_version=None, runtime=None, metadata_path=None)` | `Path` | Writes a provenance manifest to `OutputConfig.metadata_path` |
+| `write_ttv_grid_cache(config, *, epochs, ttv_mcmc, ttv_err, ttv_results, cache_path=None)` | `Path` | Writes a reusable compressed TTV-grid cache |
+| `load_ttv_grid_cache(config, *, cache_path=None)` | `dict[str, ndarray]` | Loads a cached TTV grid |
+| `write_megno_grid_cache(config, *, megno_results, cache_path=None)` | `Path` | Writes a reusable compressed MEGNO-grid cache |
+| `load_megno_grid_cache(config, *, cache_path=None)` | `dict[str, ndarray]` | Loads a cached MEGNO grid |
+| `write_posterior_samples_cache(config, *, scoring_summary, cache_path=None)` | `Path` | Writes retained Bayesian posterior samples for reuse |
+| `load_posterior_samples_cache(config, *, cache_path=None)` | `dict` | Loads cached Bayesian posterior samples |
 
 ### `make_ttv_simulation(...)` input contract
 
@@ -197,8 +220,11 @@ The adapter forwards:
 - `SimulationGrid.n_transit_simulations` -> `TTVSimulation.N`
 - `ScoringConfig.backend` -> default scorer created for `TTVSimulation.scoring_backend`
 - `SimulationGrid.megno_dt` / `megno_runtime` -> mutable MEGNO controls on the returned object
+- `ExecutionConfig.worker_count` / `start_method` / `show_progress` -> default runtime controls on the returned `TTVSimulation`
 
-`workflow_manifest(...)` also accepts `scoring_summary`, which can be either a plain dict or a `MassThresholds` object. This is the current provenance-friendly path for carrying scoring metadata into a JSON-serializable run record.
+`workflow_manifest(...)` also accepts `scoring_summary`, which can be either a plain dict or a `MassThresholds` object. `write_workflow_manifest(...)` builds on that shape and persists `code_version`, installed `dependency_versions`, runtime metadata, and the serialized scoring summary to `OutputConfig.metadata_path`.
+
+The cache helpers use `OutputConfig`'s derived cache paths so reduced runs and larger batch-style grids can reuse expensive intermediate products explicitly instead of recomputing them. TTV and MEGNO grids are stored as compressed `.npz` bundles keyed by the configured mass/ratio grid, while retained Bayesian posterior samples are stored as a focused JSON subset of the Bayesian scoring summary.
 
 ## Scoring helpers
 
