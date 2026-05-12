@@ -15,6 +15,7 @@ import cmat
 - `cmat.TargetConfig` - target metadata and data-root configuration
 - `cmat.FitControls` - fitting iteration and sampler controls
 - `cmat.SimulationGrid` - period-ratio, mass-grid, and MEGNO controls
+- `cmat.BayesianScoringConfig` - typed controls for the Bayesian nuisance-parameter scorer
 - `cmat.ScoringConfig` - typed selector for the current scoring backend
 - `cmat.OutputConfig` - artifact output paths
 - `cmat.RunConfig` - composite workflow configuration
@@ -131,9 +132,22 @@ Typed selector for the current mass-threshold scoring backend.
 
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `backend` | `str` | `"chi2_rms"` | Current supported backend name |
+| `backend` | `str` | `"chi2_rms"` | Supported values: `"chi2_rms"` and `"bayesian"` |
+| `bayesian` | `BayesianScoringConfig \| None` | `None` | Auto-filled when `backend="bayesian"`; rejected otherwise |
 
-The Stage 4 prep boundary currently supports only `chi2_rms`, and `ScoringConfig` validates against `supported_mass_threshold_backends()`. The config surface is now explicit so future backends can be added without changing `RunConfig` shape again.
+### `BayesianScoringConfig`
+
+Typed controls for the Stage 4 Bayesian scorer.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `credible_interval` | `float` | `0.997` | Must be strictly between 0 and 1 |
+| `posterior_sample_count` | `int` | `2000` | Retained posterior draws from the nuisance-parameter sampler; also reused by evidence-backed summary outputs |
+| `warmup_draws` | `int` | `1000` | Sampler warmup steps discarded before summarizing the posterior |
+| `nuisance_parameters` | tuple of `str` | `("epoch_shift", "baseline_offset", "jitter")` | Supported nuisance parameters for the single-target Bayesian TTV likelihood |
+| `store_chains` | `bool` | `False` | Include retained posterior samples in the JSON-ready scoring summary |
+
+The default path remains `chi2_rms`, while the Bayesian branch now runs an `emcee`-based nuisance-parameter sampler for posterior summaries and derives probability-style mass-limit outputs from a marginal-likelihood evidence approximation.
 
 ### `RunConfig`
 
@@ -202,6 +216,7 @@ The `cmat.scoring` module now contains both the current comparison helpers and t
 | `MassThresholds` | Dataclass holding the current `chi2` / RMS critical-mass curves plus backend metadata |
 | `MassThresholdScorer` | Protocol for backend objects that expose `critical_masses(...)` |
 | `Chi2AndRmsMassThresholdScorer` | Default backend that preserves the current legacy `chi^2` / RMS behavior |
+| `BayesianMassThresholdScorer` | Bayesian backend that samples epoch shift, baseline offset, and extra jitter, then summarizes posterior mass support |
 | `supported_mass_threshold_backends()` | Return the backend names currently accepted by `ScoringConfig.backend` |
 
 Minimal custom-backend example:
@@ -314,7 +329,7 @@ Important attributes and methods:
 | `mass_thresholds` | attribute | Latest structured `MassThresholds` result after scoring runs |
 | `megno_dt` / `megno_runtime` | attributes | Controls for MEGNO timestep and integration runtime |
 
-`get_critical_masses()` and `get_m_crit()` return the same pair of arrays: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion.
+`get_critical_masses()` and `get_m_crit()` return the same pair of arrays: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion, and grid points whose REBOUND integration terminated early are excluded explicitly instead of being treated as finite constraints.
 
 ## Stability note
 

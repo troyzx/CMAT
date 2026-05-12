@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -12,7 +13,8 @@ MPLCONFIGDIR.mkdir(exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIGDIR))
 
 from cmat import TTVSimulation, scoring
-from cmat.scoring import MassThresholds
+from cmat.config import BayesianScoringConfig
+from cmat.scoring import BayesianMassThresholdScorer, MassThresholds, make_mass_threshold_scorer
 from cmat.ttv_sim import ttv_sim
 
 
@@ -113,6 +115,33 @@ class TtvScoringTests(unittest.TestCase):
         )
         sim.ttv_results = [
             np.zeros(4),
+            np.array([10.0, 10.0, 10.0, 10.0]),
+        ]
+
+        chi2_limit, rms_limit = sim.get_m_crit()
+
+        np.testing.assert_array_equal(chi2_limit, np.array([20.0]))
+        np.testing.assert_array_equal(rms_limit, np.array([20.0]))
+
+    def test_get_m_crit_excludes_nonfinite_rows(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        sim = ttv_sim(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=prop,
+        )
+        sim.ttv_results = [
+            np.full(4, np.nan),
             np.array([10.0, 10.0, 10.0, 10.0]),
         ]
 
@@ -275,6 +304,243 @@ class TtvScoringTests(unittest.TestCase):
             scoring_backend.calls[0]["companion_masses"],
             np.array([10.0, 20.0]),
         )
+
+    def test_scorer_factory_supports_bayesian_contract_backend(self):
+        scorer = make_mass_threshold_scorer("bayesian")
+
+        self.assertIsInstance(scorer, BayesianMassThresholdScorer)
+
+    def test_bayesian_backend_returns_posterior_mass_summary(self):
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2, 3, 4]),
+            ttv_mcmc=np.array([0.3, -0.2, 0.1, -0.25, 0.35]),
+            ttv_err=np.full(5, 0.05),
+            rs=np.array([1.5]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=[
+                {
+                    "orbital_distance": 1.0,
+                    "orbital_period": 1.0,
+                    "Mp": 1.0,
+                    "Ms": 1.0,
+                    "Rs": 1.0,
+                    "Rp": 1.0,
+                }
+            ],
+            scoring_backend=BayesianMassThresholdScorer(
+                config=BayesianScoringConfig(
+                    credible_interval=0.8,
+                    posterior_sample_count=64,
+                    warmup_draws=24,
+                )
+            ),
+        )
+        simulation.ttv_results = [
+            np.array([0.3, -0.2, 0.1, -0.25, 0.35, 0.0]),
+            np.array([3.0, -2.0, 1.0, -2.5, 3.5, 0.0]),
+        ]
+
+        chi2_limit, rms_limit = simulation.get_m_crit()
+        summary = simulation.get_scoring_summary()
+
+        np.testing.assert_array_equal(chi2_limit, np.array([]))
+        np.testing.assert_array_equal(rms_limit, np.array([]))
+        self.assertEqual(summary["backend"], "bayesian")
+        self.assertEqual(summary["bayesian"]["status"], "posterior_sampled")
+        self.assertEqual(summary["bayesian"]["contract_version"], "stage4_phase2")
+        self.assertEqual(summary["bayesian"]["sampler"], "emcee")
+        self.assertEqual(summary["bayesian"]["credible_interval"], 0.8)
+        self.assertEqual(summary["bayesian"]["sample_count"], 64)
+        self.assertEqual(summary["bayesian"]["requested_sample_count"], 64)
+        self.assertEqual(summary["bayesian"]["warmup_draws"], 24)
+        self.assertEqual(summary["bayesian"]["nuisance_parameters"].keys(), {"epoch_shift", "baseline_offset", "jitter"})
+        self.assertEqual(summary["bayesian"]["mass_limits"]["units"], "earth_masses")
+        self.assertEqual(summary["bayesian"]["mass_limits"]["period_ratios"], [1.5])
+        self.assertEqual(summary["bayesian"]["mass_limits"]["evaluated_masses"], [10.0, 20.0])
+        self.assertEqual(summary["bayesian"]["mass_limits"]["upper_bound"], [10.0])
+        self.assertGreater(
+            summary["bayesian"]["mass_limits"]["posterior_by_period_ratio"][0]["model_probabilities"][1],
+            0.9,
+        )
+
+    def test_bayesian_backend_supports_nuisance_parameter_subsets(self):
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2, 3, 4]),
+            ttv_mcmc=np.array([0.3, -0.2, 0.1, -0.25, 0.35]),
+            ttv_err=np.full(5, 0.05),
+            rs=np.array([1.5]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=[
+                {
+                    "orbital_distance": 1.0,
+                    "orbital_period": 1.0,
+                    "Mp": 1.0,
+                    "Ms": 1.0,
+                    "Rs": 1.0,
+                    "Rp": 1.0,
+                }
+            ],
+            scoring_backend=BayesianMassThresholdScorer(
+                config=BayesianScoringConfig(
+                    credible_interval=0.8,
+                    posterior_sample_count=64,
+                    warmup_draws=24,
+                    nuisance_parameters=("epoch_shift",),
+                )
+            ),
+        )
+        simulation.ttv_results = [
+            np.array([0.3, -0.2, 0.1, -0.25, 0.35, 0.0]),
+            np.array([3.0, -2.0, 1.0, -2.5, 3.5, 0.0]),
+        ]
+
+        chi2_limit, rms_limit = simulation.get_m_crit()
+        summary = simulation.get_scoring_summary()
+
+        np.testing.assert_array_equal(chi2_limit, np.array([]))
+        np.testing.assert_array_equal(rms_limit, np.array([]))
+        self.assertEqual(summary["backend"], "bayesian")
+        self.assertEqual(summary["bayesian"]["nuisance_parameters"].keys(), {"epoch_shift"})
+        self.assertEqual(summary["bayesian"]["sample_count"], 64)
+        self.assertEqual(summary["bayesian"]["requested_sample_count"], 64)
+        self.assertEqual(summary["bayesian"]["posterior_samples"], None)
+        self.assertEqual(summary["bayesian"]["mass_limits"]["period_ratios"], [1.5])
+
+    def test_bayesian_backend_excludes_invalid_models_from_evidence(self):
+        simulation = TTVSimulation(
+            epochs=np.array([0, 1, 2, 3, 4]),
+            ttv_mcmc=np.array([0.3, -0.2, 0.1, -0.25, 0.35]),
+            ttv_err=np.full(5, 0.05),
+            rs=np.array([1.5]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=[
+                {
+                    "orbital_distance": 1.0,
+                    "orbital_period": 1.0,
+                    "Mp": 1.0,
+                    "Ms": 1.0,
+                    "Rs": 1.0,
+                    "Rp": 1.0,
+                }
+            ],
+            scoring_backend=BayesianMassThresholdScorer(
+                config=BayesianScoringConfig(
+                    credible_interval=0.8,
+                    posterior_sample_count=64,
+                    warmup_draws=24,
+                )
+            ),
+        )
+        simulation.ttv_results = [
+            np.full(6, np.nan),
+            np.array([0.3, -0.2, 0.1, -0.25, 0.35, 0.0]),
+        ]
+
+        simulation.get_m_crit()
+        posterior = simulation.get_scoring_summary()["bayesian"]["mass_limits"][
+            "posterior_by_period_ratio"
+        ][0]
+
+        self.assertEqual(posterior["model_probabilities"][1], 0.0)
+        self.assertGreater(posterior["model_probabilities"][2], 0.0)
+
+    def test_bayesian_backend_uses_log_evidence_for_model_probabilities(self):
+        scorer = BayesianMassThresholdScorer(
+            config=BayesianScoringConfig(
+                posterior_sample_count=8,
+                warmup_draws=4,
+                nuisance_parameters=("epoch_shift",),
+            )
+        )
+        fake_result = scoring._BayesianModelResult
+        neutral_interval = {"epoch_shift": scoring.BayesianPosteriorInterval(0.0, 0.0, 0.0)}
+
+        with mock.patch.object(
+            BayesianMassThresholdScorer,
+            "_sample_model",
+            side_effect=[
+                fake_result(
+                    support_score=0.0,
+                    log_evidence=0.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+                fake_result(
+                    support_score=8.0,
+                    log_evidence=-8.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+                fake_result(
+                    support_score=7.0,
+                    log_evidence=-9.0,
+                    sample_count=8,
+                    intervals=neutral_interval,
+                    mean_acceptance_fraction=0.5,
+                    alignment_count=1,
+                ),
+            ],
+        ):
+            result = scorer.critical_masses(
+                ttv_results=[
+                    np.zeros(3, dtype=float),
+                    np.ones(3, dtype=float),
+                ],
+                epoch=np.array([0, 1, 2], dtype=int),
+                ttv_mcmc=np.array([0.0, 0.0, 0.0], dtype=float),
+                ttv_err=np.ones(3, dtype=float),
+                period_ratios=np.array([1.2], dtype=float),
+                companion_masses=np.array([10.0, 20.0], dtype=float),
+            )
+
+        posterior = result.bayesian.mass_limits.posterior_by_period_ratio[0]
+        self.assertIsNone(posterior.best_mass)
+        self.assertIsNone(posterior.upper_bound)
+        self.assertGreater(posterior.model_probabilities[0], posterior.model_probabilities[1])
+        self.assertGreater(posterior.posterior_predictive_score[1], posterior.posterior_predictive_score[0])
+        np.testing.assert_allclose(posterior.log_evidence, np.array([0.0, -8.0, -9.0]))
+
+    def test_bayesian_backend_retains_representative_posterior_draws(self):
+        class FakeSampler:
+            def __init__(self, flat_chain):
+                self._flat_chain = flat_chain
+                self.acceptance_fraction = np.array([0.5] * 12)
+
+            def run_mcmc(self, initial_position, nsteps, progress=False):
+                return None
+
+            def get_chain(self, discard=0, flat=False):
+                return self._flat_chain
+
+        scorer = BayesianMassThresholdScorer(
+            config=BayesianScoringConfig(
+                posterior_sample_count=4,
+                warmup_draws=2,
+                nuisance_parameters=("baseline_offset",),
+                store_chains=True,
+            )
+        )
+        flat_chain = np.arange(8, dtype=float).reshape(-1, 1)
+
+        with mock.patch(
+            "cmat.scoring.emcee.EnsembleSampler",
+            return_value=FakeSampler(flat_chain),
+        ):
+            result = scorer._sample_model(
+                ttv_rebound=np.zeros(5, dtype=float),
+                epoch=np.array([0, 1, 2], dtype=int),
+                observed_ttv=np.array([0.1, 0.2, 0.3], dtype=float),
+                observed_err=np.full(3, 0.05, dtype=float),
+                nuisance_parameters=("baseline_offset",),
+                seed_hint=("representative-retention",),
+            )
+
+        self.assertEqual(result.sample_count, 4)
+        self.assertEqual(result.posterior_samples["baseline_offset"], [1.0, 3.0, 5.0, 7.0])
 
     def test_get_scoring_summary_requires_prior_scoring_run(self):
         simulation = TTVSimulation(

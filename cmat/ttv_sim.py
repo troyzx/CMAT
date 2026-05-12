@@ -124,6 +124,11 @@ class ttv_sim:
                     sim.integrate(sim.t + 5e-5)
                 except (rebound.Escape, rebound.Collision):
                     break
+        if i < N:
+            # Early termination means the transit series is not physically usable
+            # as a scoring input. Return an explicit invalid series instead of a
+            # zero-filled artifact so downstream scorers can exclude it cleanly.
+            return np.full(N, np.nan)
         c, m = np.linalg.lstsq(
             np.vstack([np.ones(N), range(N)]).T, transittimes, rcond=None
         )[0]

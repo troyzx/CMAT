@@ -48,7 +48,10 @@ def make_ttv_simulation(
     if scoring_backend is None:
         from .scoring import make_mass_threshold_scorer
 
-        scoring_backend = make_mass_threshold_scorer(config.scoring.backend)
+        scoring_backend = make_mass_threshold_scorer(
+            config.scoring.backend,
+            bayesian_config=config.scoring.bayesian,
+        )
 
     from .ttv_sim import TTVSimulation
 

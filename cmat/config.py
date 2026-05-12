@@ -16,6 +16,11 @@ from typing import Any, Iterable
 import numpy as np
 
 
+SUPPORTED_BAYESIAN_NUISANCE_PARAMETERS = frozenset(
+    {"epoch_shift", "baseline_offset", "jitter"}
+)
+
+
 def _require_text(value: str, field_name: str) -> str:
     if not isinstance(value, str):
         raise TypeError(f"{field_name} must be a string")
@@ -47,6 +52,15 @@ def _require_positive_float(value: float, field_name: str) -> float:
         raise ValueError(f"{field_name} must be finite")
     if value <= 0:
         raise ValueError(f"{field_name} must be positive")
+    return value
+
+
+def _require_unit_interval(value: float, field_name: str) -> float:
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError(f"{field_name} must be finite")
+    if not 0.0 < value < 1.0:
+        raise ValueError(f"{field_name} must be between 0 and 1")
     return value
 
 
@@ -249,10 +263,76 @@ class OutputConfig:
 
 
 @dataclass(frozen=True)
+class BayesianScoringConfig:
+    """Typed controls for the Stage 4 Bayesian nuisance-parameter scorer."""
+
+    credible_interval: float = 0.997
+    posterior_sample_count: int = 2000
+    warmup_draws: int = 1000
+    nuisance_parameters: tuple[str, ...] = (
+        "epoch_shift",
+        "baseline_offset",
+        "jitter",
+    )
+    store_chains: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "credible_interval",
+            _require_unit_interval(self.credible_interval, "credible_interval"),
+        )
+        object.__setattr__(
+            self,
+            "posterior_sample_count",
+            _require_positive_int(self.posterior_sample_count, "posterior_sample_count"),
+        )
+        object.__setattr__(
+            self,
+            "warmup_draws",
+            _require_positive_int(self.warmup_draws, "warmup_draws"),
+        )
+        if isinstance(self.nuisance_parameters, str):
+            nuisance_parameters = (self.nuisance_parameters,)
+        else:
+            nuisance_parameters = tuple(self.nuisance_parameters)
+        if not nuisance_parameters:
+            raise ValueError("nuisance_parameters must contain at least one value")
+        nuisance_parameters = tuple(
+            _require_text(parameter, "nuisance_parameters")
+            for parameter in nuisance_parameters
+        )
+        if len(set(nuisance_parameters)) != len(nuisance_parameters):
+            raise ValueError("nuisance_parameters must be unique")
+        unsupported = tuple(
+            parameter
+            for parameter in nuisance_parameters
+            if parameter not in SUPPORTED_BAYESIAN_NUISANCE_PARAMETERS
+        )
+        if unsupported:
+            raise ValueError(
+                "Unsupported Bayesian nuisance parameters: " + ", ".join(unsupported)
+            )
+        object.__setattr__(self, "nuisance_parameters", nuisance_parameters)
+        if not isinstance(self.store_chains, bool):
+            raise TypeError("store_chains must be a boolean")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "credible_interval": self.credible_interval,
+            "posterior_sample_count": self.posterior_sample_count,
+            "warmup_draws": self.warmup_draws,
+            "nuisance_parameters": list(self.nuisance_parameters),
+            "store_chains": self.store_chains,
+        }
+
+
+@dataclass(frozen=True)
 class ScoringConfig:
     """Typed selector for the current mass-threshold scoring backend."""
 
     backend: str = "chi2_rms"
+    bayesian: BayesianScoringConfig | None = None
 
     def __post_init__(self) -> None:
         from .scoring import supported_mass_threshold_backends
@@ -264,9 +344,22 @@ class ScoringConfig:
                 + ", ".join(supported_mass_threshold_backends())
             )
         object.__setattr__(self, "backend", backend)
+        if self.bayesian is not None and not isinstance(self.bayesian, BayesianScoringConfig):
+            raise TypeError("bayesian must be a BayesianScoringConfig or None")
+        if backend == "bayesian":
+            object.__setattr__(
+                self,
+                "bayesian",
+                self.bayesian if self.bayesian is not None else BayesianScoringConfig(),
+            )
+        elif self.bayesian is not None:
+            raise ValueError("bayesian config is only valid when backend='bayesian'")
 
-    def to_dict(self) -> dict[str, str]:
-        return {"backend": self.backend}
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"backend": self.backend}
+        if self.bayesian is not None:
+            payload["bayesian"] = self.bayesian.to_dict()
+        return payload
 
 
 @dataclass(frozen=True)

@@ -4,6 +4,7 @@ import unittest
 import numpy as np
 
 from cmat.config import (
+    BayesianScoringConfig,
     FitControls,
     OutputConfig,
     RunConfig,
@@ -74,9 +75,66 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(scoring.to_dict(), {"backend": "chi2_rms"})
 
+    def test_scoring_config_supports_bayesian_contract(self):
+        scoring = ScoringConfig(
+            backend="bayesian",
+            bayesian=BayesianScoringConfig(
+                credible_interval=0.95,
+                posterior_sample_count=256,
+                warmup_draws=128,
+                nuisance_parameters=("epoch_shift", "baseline_offset", "jitter"),
+            ),
+        )
+
+        self.assertEqual(
+            scoring.to_dict(),
+            {
+                "backend": "bayesian",
+                "bayesian": {
+                    "credible_interval": 0.95,
+                    "posterior_sample_count": 256,
+                    "warmup_draws": 128,
+                    "nuisance_parameters": [
+                        "epoch_shift",
+                        "baseline_offset",
+                        "jitter",
+                    ],
+                    "store_chains": False,
+                },
+            },
+        )
+
+    def test_scoring_config_rejects_bayesian_options_for_non_bayesian_backend(self):
+        with self.assertRaises(ValueError):
+            ScoringConfig(
+                backend="chi2_rms",
+                bayesian=BayesianScoringConfig(),
+            )
+
     def test_scoring_config_rejects_unknown_backend(self):
         with self.assertRaises(ValueError):
             ScoringConfig(backend="bayes")
+
+    def test_bayesian_scoring_config_rejects_invalid_contract_settings(self):
+        with self.assertRaises(ValueError):
+            BayesianScoringConfig(credible_interval=1.0)
+        with self.assertRaises(ValueError):
+            BayesianScoringConfig(nuisance_parameters=())
+        with self.assertRaises(ValueError):
+            BayesianScoringConfig(posterior_sample_count=0)
+
+    def test_bayesian_scoring_config_rejects_unsupported_nuisance_parameters(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Unsupported Bayesian nuisance parameters: stale_parameter",
+        ):
+            BayesianScoringConfig(nuisance_parameters=("epoch_shift", "stale_parameter"))
+
+    def test_bayesian_scoring_config_accepts_supported_nuisance_parameter_subset(self):
+        config = BayesianScoringConfig(nuisance_parameters=("epoch_shift",))
+
+        self.assertEqual(config.nuisance_parameters, ("epoch_shift",))
+        self.assertEqual(config.to_dict()["nuisance_parameters"], ["epoch_shift"])
 
     def test_run_config_is_json_serializable(self):
         config = RunConfig(

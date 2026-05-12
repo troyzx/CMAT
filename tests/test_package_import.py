@@ -16,6 +16,7 @@ class PackageImportTests(unittest.TestCase):
                 "TargetConfig",
                 "FitControls",
                 "SimulationGrid",
+                "BayesianScoringConfig",
                 "ScoringConfig",
                 "OutputConfig",
                 "RunConfig",
@@ -29,9 +30,11 @@ class PackageImportTests(unittest.TestCase):
         cmat = importlib.import_module("cmat")
 
         target = cmat.TargetConfig("WASP-44 b")
+        bayesian = cmat.BayesianScoringConfig()
         scoring = cmat.ScoringConfig()
 
         self.assertEqual(target.planet_name, "WASP-44 b")
+        self.assertEqual(bayesian.nuisance_parameters, ("epoch_shift", "baseline_offset", "jitter"))
         self.assertEqual(scoring.backend, "chi2_rms")
 
     def test_legacy_and_preferred_fit_exports_both_resolve(self):
