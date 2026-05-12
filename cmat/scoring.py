@@ -577,19 +577,17 @@ class BayesianMassThresholdScorer:
         posterior_steps = int(np.ceil(self.config.posterior_sample_count / nwalkers))
         nsteps = self.config.warmup_draws + posterior_steps
 
-        rng = np.random.default_rng(
-            _stable_seed(
-                observed_ttv,
-                observed_err,
-                ttv_rebound,
-                nuisance_parameters,
-                self.config.credible_interval,
-                self.config.posterior_sample_count,
-                self.config.warmup_draws,
-                seed_hint,
-            )
+        seed = _stable_seed(
+            observed_ttv,
+            observed_err,
+            ttv_rebound,
+            nuisance_parameters,
+            self.config.credible_interval,
+            self.config.posterior_sample_count,
+            self.config.warmup_draws,
+            seed_hint,
         )
-
+        rng = np.random.default_rng(seed)
         initial_position = np.empty((nwalkers, ndim), dtype=float)
         if "epoch_shift" in name_to_index:
             index = name_to_index["epoch_shift"]
@@ -628,6 +626,7 @@ class BayesianMassThresholdScorer:
             )
 
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability)
+        sampler.random_state = np.random.RandomState(seed).get_state()
         sampler.run_mcmc(initial_position, nsteps, progress=False)
 
         flat_chain = sampler.get_chain(discard=self.config.warmup_draws, flat=True)

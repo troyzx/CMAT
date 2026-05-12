@@ -807,6 +807,7 @@ class TtvScoringTests(unittest.TestCase):
             def __init__(self, flat_chain):
                 self._flat_chain = flat_chain
                 self.acceptance_fraction = np.array([0.5] * 12)
+                self.random_state = None
 
             def run_mcmc(self, initial_position, nsteps, progress=False):
                 return None
@@ -839,6 +840,43 @@ class TtvScoringTests(unittest.TestCase):
 
         self.assertEqual(result.sample_count, 4)
         self.assertEqual(result.posterior_samples["baseline_offset"], [1.0, 3.0, 5.0, 7.0])
+
+    def test_bayesian_backend_seeds_emcee_random_state_from_stable_seed(self):
+        class FakeSampler:
+            def __init__(self):
+                self.acceptance_fraction = np.array([0.5] * 12)
+                self.random_state = None
+
+            def run_mcmc(self, initial_position, nsteps, progress=False):
+                return None
+
+            def get_chain(self, discard=0, flat=False):
+                return np.zeros((8, 1), dtype=float)
+
+        fake_sampler = FakeSampler()
+        scorer = BayesianMassThresholdScorer(
+            config=BayesianScoringConfig(
+                posterior_sample_count=4,
+                warmup_draws=2,
+                nuisance_parameters=("baseline_offset",),
+            )
+        )
+
+        with mock.patch(
+            "cmat.scoring.emcee.EnsembleSampler",
+            return_value=fake_sampler,
+        ):
+            scorer._sample_model(
+                ttv_rebound=np.zeros(5, dtype=float),
+                epoch=np.array([0, 1, 2], dtype=int),
+                observed_ttv=np.array([0.1, 0.2, 0.3], dtype=float),
+                observed_err=np.full(3, 0.05, dtype=float),
+                nuisance_parameters=("baseline_offset",),
+                seed_hint=("sampler-seed",),
+            )
+
+        self.assertIsNotNone(fake_sampler.random_state)
+        self.assertEqual(fake_sampler.random_state[0], "MT19937")
 
     def test_get_mass_thresholds_returns_full_bayesian_result_object(self):
         simulation = TTVSimulation(
