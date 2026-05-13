@@ -28,11 +28,16 @@ from cmat.workflow import (
     provenance_code_version,
     provenance_dependency_versions,
     provenance_runtime,
+    run_simulator_adapter,
+    simulator_adapter_manifest,
+    write_simulator_adapter_portfolio,
+    write_simulator_adapter_manifest,
     write_megno_grid_cache,
     write_posterior_samples_cache,
     write_ttv_grid_cache,
     workflow_manifest,
     write_workflow_manifest,
+    SimulatorAdapterRunResult,
 )
 
 
@@ -457,6 +462,194 @@ class WorkflowTests(unittest.TestCase):
                 config,
                 scoring_summary={"backend": "bayesian", "bayesian": {"sample_count": 4}},
             )
+
+    def test_run_simulator_adapter_returns_generic_inverse_model_result(self):
+        class DemoAdapter:
+            def parameter_grid(self):
+                return [{"stiffness": 1.0}, {"stiffness": 2.0}, {"stiffness": 3.0}]
+
+            def simulate(self, parameters):
+                return np.array([parameters["stiffness"], parameters["stiffness"] * 2.0])
+
+            def score(self, simulated_observable):
+                target = np.array([2.0, 4.0])
+                return float(np.sqrt(np.mean((simulated_observable - target) ** 2)))
+
+            def is_accepted(self, score):
+                return score <= 0.75
+
+            def summarize(self, *, parameter_grid, scores, accepted):
+                best_index = int(np.argmin(scores))
+                return {
+                    "accepted_count": int(np.sum(accepted)),
+                    "best_parameters": parameter_grid[best_index],
+                }
+
+        result = run_simulator_adapter(
+            DemoAdapter(),
+            execution=ExecutionConfig(worker_count=1, show_progress=False),
+        )
+
+        self.assertIsInstance(result, SimulatorAdapterRunResult)
+        np.testing.assert_allclose(result.scores, np.array([1.58113883, 0.0, 1.58113883]))
+        np.testing.assert_array_equal(result.accepted, np.array([False, True, False]))
+        self.assertEqual(result.summary["accepted_count"], 1)
+        self.assertEqual(result.summary["best_parameters"], {"stiffness": 2.0})
+        serialized = json.dumps(result.to_dict(), sort_keys=True)
+        self.assertIn('"accepted_count": 1', serialized)
+
+    def test_run_simulator_adapter_uses_execution_controls(self):
+        class DemoAdapter:
+            def parameter_grid(self):
+                return [{"x": 1.0}, {"x": 2.0}]
+
+            def simulate(self, parameters):
+                return parameters["x"]
+
+            def score(self, simulated_observable):
+                return float(simulated_observable)
+
+            def is_accepted(self, score):
+                return score < 2.0
+
+            def summarize(self, *, parameter_grid, scores, accepted):
+                return {"count": len(parameter_grid)}
+
+        context_calls = []
+
+        class FakePool:
+            def __init__(self, process_count):
+                self.process_count = process_count
+
+            def imap(self, func, tasks):
+                return map(func, tasks)
+
+            def close(self):
+                return None
+
+            def join(self):
+                return None
+
+        class FakeContext:
+            def Pool(self, process_count):
+                context_calls.append(process_count)
+                return FakePool(process_count)
+
+        with mock.patch("cmat.workflow.get_context", return_value=FakeContext()) as get_context_mock, mock.patch(
+            "cmat.workflow.tqdm"
+        ) as tqdm_mock:
+            result = run_simulator_adapter(
+                DemoAdapter(),
+                execution=ExecutionConfig(
+                    worker_count=3,
+                    start_method="spawn",
+                    show_progress=False,
+                ),
+            )
+
+        get_context_mock.assert_called_once_with("spawn")
+        tqdm_mock.assert_not_called()
+        self.assertEqual(context_calls, [3])
+        np.testing.assert_array_equal(result.accepted, np.array([True, False]))
+
+    def test_write_simulator_adapter_portfolio_writes_report_table_and_figure(self):
+        result = SimulatorAdapterRunResult(
+            parameter_grid=(
+                {"damping": 0.3, "stiffness": 3.0},
+                {"damping": 0.6, "stiffness": 4.0},
+            ),
+            scores=np.array([0.25, 0.0]),
+            accepted=np.array([False, True]),
+            summary={"accepted_count": 1},
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = write_simulator_adapter_portfolio(
+                result,
+                output_dir=Path(tmpdir) / "portfolio",
+                title="Demo portfolio",
+            )
+
+            self.assertTrue(paths["report"].exists())
+            self.assertTrue(paths["summary"].exists())
+            self.assertTrue(paths["table"].exists())
+            self.assertTrue(paths["figure"].exists())
+
+            summary_payload = json.loads(paths["summary"].read_text(encoding="utf-8"))
+            self.assertEqual(summary_payload["accepted_count"], 1)
+            self.assertEqual(summary_payload["best_parameters"], {"damping": 0.6, "stiffness": 4.0})
+            table_payload = paths["table"].read_text(encoding="utf-8")
+            self.assertIn("damping,stiffness,score,accepted", table_payload)
+            self.assertIn("0.6,4.0,0.0,True", table_payload)
+
+    def test_simulator_adapter_manifest_is_json_serializable(self):
+        result = SimulatorAdapterRunResult(
+            parameter_grid=(
+                {"damping": 0.3, "stiffness": 3.0},
+                {"damping": 0.6, "stiffness": 4.0},
+            ),
+            scores=np.array([0.25, 0.0]),
+            accepted=np.array([False, True]),
+            summary={"accepted_count": 1},
+        )
+
+        manifest = simulator_adapter_manifest(
+            result,
+            adapter_name="damped_oscillator",
+            execution=ExecutionConfig(worker_count=2, start_method="spawn", show_progress=False),
+            dependency_versions={"numpy": "2.0.0"},
+            code_version={"git_commit": "abc123", "git_dirty": False},
+            runtime={"python_version": "3.11.0"},
+            notes={"mode": "batch"},
+        )
+        serialized = json.dumps(manifest, sort_keys=True)
+
+        self.assertIn('"adapter_name": "damped_oscillator"', serialized)
+        self.assertIn('"accepted_count": 1', serialized)
+        self.assertIn('"worker_count": 2', serialized)
+        self.assertIn('"best_score": 0.0', serialized)
+        self.assertIn('"mode": "batch"', serialized)
+
+    def test_write_simulator_adapter_manifest_persists_metadata_file(self):
+        result = SimulatorAdapterRunResult(
+            parameter_grid=(
+                {"damping": 0.3, "stiffness": 3.0},
+                {"damping": 0.6, "stiffness": 4.0},
+            ),
+            scores=np.array([0.25, 0.0]),
+            accepted=np.array([False, True]),
+            summary={"accepted_count": 1},
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "deployment" / "run_metadata.json"
+
+            with mock.patch(
+                "cmat.workflow.provenance_dependency_versions",
+                return_value={"numpy": "2.0.0"},
+            ), mock.patch(
+                "cmat.workflow.provenance_code_version",
+                return_value={"git_commit": "abc123", "git_dirty": False},
+            ), mock.patch(
+                "cmat.workflow.provenance_runtime",
+                return_value={"python_version": "3.11.0"},
+            ):
+                written_path = write_simulator_adapter_manifest(
+                    result,
+                    adapter_name="damped_oscillator",
+                    metadata_path=output_path,
+                    execution=ExecutionConfig(worker_count=1, show_progress=False),
+                    notes={"mode": "batch"},
+                )
+
+            self.assertEqual(written_path, output_path)
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["adapter_name"], "damped_oscillator")
+            self.assertEqual(payload["dependency_versions"], {"numpy": "2.0.0"})
+            self.assertEqual(payload["code_version"]["git_commit"], "abc123")
+            self.assertEqual(payload["runtime"]["python_version"], "3.11.0")
+            self.assertEqual(payload["notes"]["mode"], "batch")
+            self.assertEqual(payload["best_parameters"], {"damping": 0.6, "stiffness": 4.0})
 
 
 if __name__ == "__main__":

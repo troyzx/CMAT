@@ -202,6 +202,10 @@ The `cmat.workflow` module provides the current rebuild boundary around the lega
 | `legacy_data_dir(target)` | `str` | Normalizes `TargetConfig.data_dir` to the trailing-slash string expected by the fitting workflow |
 | `make_fit_lpf(target)` | `TransitFitWorkflow` | Builds a transit-fitting object from a typed target config |
 | `make_ttv_simulation(config, *, epochs, ttv_mcmc, ttv_err, prop, scoring_backend=None)` | `TTVSimulation` | Builds a forward-simulation object from typed config plus observed TTV arrays and selects the configured default scorer |
+| `run_simulator_adapter(adapter, *, execution=None)` | `SimulatorAdapterRunResult` | Runs a generic Stage 5 simulator adapter over its latent-state grid |
+| `write_simulator_adapter_portfolio(result, *, output_dir, title=...)` | `dict[str, Path]` | Writes report, table, and figure artifacts for a simulator-adapter run |
+| `simulator_adapter_manifest(result, *, adapter_name, execution=None, dependency_versions=None, notes=None, code_version=None, runtime=None)` | `dict` | Builds a JSON-serializable manifest for a simulator-adapter run |
+| `write_simulator_adapter_manifest(result, *, adapter_name, metadata_path, execution=None, dependency_versions=None, notes=None, code_version=None, runtime=None)` | `Path` | Writes a simulator-adapter manifest for deployment-style artifacts |
 | `workflow_manifest(config, *, dependency_versions=None, notes=None, scoring_summary=None, code_version=None, runtime=None)` | `dict` | Builds a JSON-serializable run manifest |
 | `write_workflow_manifest(config, *, dependency_versions=None, notes=None, scoring_summary=None, code_version=None, runtime=None, metadata_path=None)` | `Path` | Writes a provenance manifest to `OutputConfig.metadata_path` |
 | `write_ttv_grid_cache(config, *, epochs, ttv_mcmc, ttv_err, ttv_results, cache_path=None)` | `Path` | Writes a reusable compressed TTV-grid cache |
@@ -238,6 +242,44 @@ The adapter forwards:
 `workflow_manifest(...)` also accepts `scoring_summary`, which can be either a plain dict or a `MassThresholds` object. `write_workflow_manifest(...)` builds on that shape and persists `code_version`, installed `dependency_versions`, runtime metadata, and the serialized scoring summary to `OutputConfig.metadata_path`.
 
 The cache helpers use `OutputConfig`'s derived cache paths so reduced runs and larger batch-style grids can reuse expensive intermediate products explicitly instead of recomputing them. TTV and MEGNO grids are stored as compressed `.npz` bundles keyed by the configured mass/ratio grid, while retained Bayesian posterior samples are stored as a focused JSON subset of the Bayesian scoring summary.
+
+### `run_simulator_adapter(...)` contract
+
+`run_simulator_adapter(...)` is the Stage 5 generic workflow bridge. It leaves the astronomy-specific TTV implementation untouched, but lets another physical system expose the same high-level shape through a small adapter object.
+
+The adapter is expected to provide:
+
+- `parameter_grid()` -> sequence of non-empty `{name: float}` dictionaries
+- `simulate(parameters)` -> one simulated observable for that latent-state point
+- `score(simulated_observable)` -> finite mismatch or utility score
+- `is_accepted(score)` -> boolean acceptance decision
+- `summarize(parameter_grid=..., scores=..., accepted=...)` -> JSON-friendly summary dict
+
+`run_simulator_adapter(...)` returns a `SimulatorAdapterRunResult` with the normalized parameter grid, per-point scores, acceptance mask, and adapter summary. It accepts an `ExecutionConfig` so generic examples can reuse the same worker-count / start-method / progress controls as the rebuilt astronomy path.
+
+### `write_simulator_adapter_portfolio(...)` contract
+
+`write_simulator_adapter_portfolio(...)` turns a `SimulatorAdapterRunResult` into a small portfolio bundle:
+
+- `report.md` - compact human-readable summary
+- `summary.json` - machine-readable headline metadata
+- `tables/grid_scores.csv` - one row per latent-state point
+- `figures/score_surface.png` - static score figure for one- or two-parameter grids
+
+This is the current Stage 5 path for producing portfolio-style artifacts without changing the legacy astronomy notebook workflow.
+
+### `simulator_adapter_manifest(...)` contract
+
+`simulator_adapter_manifest(...)` summarizes a generic adapter run in a JSON-friendly shape suitable for persisted metadata:
+
+- adapter name
+- parameter names and candidate counts
+- accepted count
+- best-scoring parameter point
+- adapter summary payload
+- optional execution, provenance, and freeform notes
+
+`write_simulator_adapter_manifest(...)` persists the same structure to a chosen `run_metadata.json` path, filling in dependency versions, git metadata, and runtime context by default. This is the current Stage 5 deployment-oriented companion to `write_simulator_adapter_portfolio(...)`.
 
 ## Scoring helpers
 

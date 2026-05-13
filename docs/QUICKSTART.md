@@ -20,6 +20,14 @@ This reduced path:
 - computes reduced mass-threshold outputs
 - runs one reduced MEGNO point
 
+In Stage 5 terms, that same reduced path can be read as:
+
+1. **Observation extraction** - load the reduced timing residual series.
+2. **Uncertainty estimation** - carry the per-epoch timing uncertainties in `ttv_err`.
+3. **Forward simulation** - evaluate a small latent-state grid with REBOUND.
+4. **Hypothesis rejection** - compare simulated and observed timing structure.
+5. **Decision-surface generation** - summarize the result as reduced mass-limit and stability outputs.
+
 ## Minimal cached-data example
 
 The reduced smoke path is built around the following minimal flow:
