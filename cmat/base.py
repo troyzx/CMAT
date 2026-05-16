@@ -471,7 +471,7 @@ class Fitlpf:
         pbar.update(1)
         return single
 
-    def fit_singles(self):
+    def fit_singles(self, *, use_cache=False, cache_path=None, overwrite_cache=False):
         """
         Fits transit models to individual light curves.
 
@@ -480,10 +480,27 @@ class Fitlpf:
             Default is 100.
             npop (int): Number of populations for the genetic algorithm.
             Default is 50.
+            use_cache (bool): If True, attempt to load from or save to cache.
+            cache_path (str): Path to the cache file.
+            overwrite_cache (bool): If True, recompute and overwrite cache.
 
         Returns:
             None
         """
+        import os
+        import dill
+        import pathlib
+
+        if use_cache and cache_path and not overwrite_cache:
+            if os.path.exists(cache_path):
+                with open(cache_path, "rb") as f:
+                    cached_data = dill.load(f)
+                self.singles = cached_data["singles"]
+                self.post_samples = cached_data["post_samples"]
+                self.tcs = cached_data["tcs"]
+                self.epochs = cached_data["epochs"]
+                return
+
         # self.fit_single_v = np.vectorize(self.fit_single)
         # self.singles = self.fit_single_v(np.arange(len(self.lpf.times)))
         with tqdm(total=len(np.arange(len(self.lpf.times))) + 1) as pbar:
@@ -500,6 +517,16 @@ class Fitlpf:
             self.tcs.append(tc)
 
         self.epochs = epoch_v(getn_v(self.tcs), self.zero_epoch.n, self.period.n)
+
+        if use_cache and cache_path:
+            pathlib.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "wb") as f:
+                dill.dump({
+                    "singles": self.singles,
+                    "post_samples": self.post_samples,
+                    "tcs": self.tcs,
+                    "epochs": self.epochs
+                }, f)
 
     def get_posterior_samples(self):
         """
