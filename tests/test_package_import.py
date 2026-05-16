@@ -51,6 +51,13 @@ class PackageImportTests(unittest.TestCase):
         )
         self.assertTrue(hasattr(cmat.__getattr__("TransitFitWorkflow"), "plot_ttv_residuals"))
 
+    def test_preferred_simulation_name_remains_callable_after_submodule_import(self):
+        cmat = importlib.import_module("cmat")
+
+        importlib.import_module("cmat.ttv_sim")
+
+        self.assertTrue(callable(cmat.TTVSimulation))
+
 
 if __name__ == "__main__":
     unittest.main()
