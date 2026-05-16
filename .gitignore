@@ -22,3 +22,7 @@ setup.py
 
 # Untracked data directories
 data/WD 1856/
+
+# CMAT local cache
+cmat_cache/
+

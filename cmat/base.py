@@ -63,6 +63,9 @@ Functions:
 """
 
 import os
+import json
+import pathlib
+import glob
 import numpy as np
 import requests
 import matplotlib.pyplot as plt
@@ -286,6 +289,18 @@ class Fitlpf:
         self.ttv_mcmc = None
         self.fit_single_v = None
 
+    def _apply_prop(self):
+        transit_time = self.prop[0]["transit_time"] + 2.4e6 + 0.5
+        transit_time_err = max(
+            self.prop[0]["transit_time_lower"], self.prop[0]["transit_time_upper"]
+        )
+        orbital_period = self.prop[0]["orbital_period"]
+        orbital_period_err = max(
+            self.prop[0]["orbital_period_lower"], self.prop[0]["orbital_period_upper"]
+        )
+        self.period = ufloat(orbital_period, orbital_period_err)
+        self.zero_epoch = ufloat(transit_time, transit_time_err)
+
     def get_parameter(self, *, use_cache=False, cache_path=None, overwrite_cache=False):
         """
         Retrieves the parameters for the given planet.
@@ -298,43 +313,20 @@ class Fitlpf:
         Returns:
             None
         """
-        import os
-        import json
-        import pathlib
-
         if use_cache and cache_path and not overwrite_cache:
             if os.path.exists(cache_path):
                 with open(cache_path, "r") as f:
                     cached_data = json.load(f)
                 self.ticid = cached_data["ticid"]
                 self.prop = cached_data["prop"]
-                
-                transit_time = self.prop[0]["transit_time"] + 2.4e6 + 0.5
-                transit_time_err = max(
-                    self.prop[0]["transit_time_lower"], self.prop[0]["transit_time_upper"]
-                )
-                orbital_period = self.prop[0]["orbital_period"]
-                orbital_period_err = max(
-                    self.prop[0]["orbital_period_lower"], self.prop[0]["orbital_period_upper"]
-                )
-                self.period = ufloat(orbital_period, orbital_period_err)
-                self.zero_epoch = ufloat(transit_time, transit_time_err)
+                self._apply_prop()
                 self.print_parameters()
                 return
 
         planet_name = self.planet_name
         ticid = get_id(planet_name)
         self.prop = get_prop(planet_name)
-        transit_time = self.prop[0]["transit_time"] + 2.4e6 + 0.5
-        transit_time_err = max(
-            self.prop[0]["transit_time_lower"], self.prop[0]["transit_time_upper"]
-        )
-        orbital_period = self.prop[0]["orbital_period"]
-        orbital_period_err = max(
-            self.prop[0]["orbital_period_lower"], self.prop[0]["orbital_period_upper"]
-        )
-        self.period = ufloat(orbital_period, orbital_period_err)
-        self.zero_epoch = ufloat(transit_time, transit_time_err)
+        self._apply_prop()
         self.ticid = ticid
         self.print_parameters()
 
@@ -380,7 +372,7 @@ class Fitlpf:
         )
         print(f"Planet Mass Reference: {planet_prop[0]['Mp_ref']}")
 
-    def download_data(self, product=None, *, use_cache=False):
+    def download_data(self, product=None, *, use_cache=False, overwrite_cache=False):
         """
         Downloads data from the specified planet and returns
         the manifest of downloaded products.
@@ -388,14 +380,12 @@ class Fitlpf:
         Args:
             product: Data product to download.
             use_cache (bool): If True, skip downloading if .fits files exist in the target directory.
+            overwrite_cache (bool): If True, redownload even if data exists.
 
         Returns:
             manifest (str): The manifest of downloaded products.
         """
-        import os
-        import glob
-        
-        if use_cache:
+        if use_cache and not overwrite_cache:
             tess_dir = os.path.join(self.full_datadir, "mastDownload", "TESS")
             if os.path.exists(tess_dir):
                 fits_files = glob.glob(os.path.join(tess_dir, "**", "*.fits"), recursive=True)
@@ -539,9 +529,7 @@ class Fitlpf:
         Returns:
             None
         """
-        import os
         import dill
-        import pathlib
 
         if use_cache and cache_path and not overwrite_cache:
             if os.path.exists(cache_path):
