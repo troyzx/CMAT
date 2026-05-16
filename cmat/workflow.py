@@ -48,6 +48,9 @@ DEFAULT_PROVENANCE_DISTRIBUTIONS = (
 )
 
 
+_SIMULATOR_ADAPTER_WORKER: SimulatorAdapter | None = None
+
+
 @dataclass(frozen=True)
 class SimulatorAdapterRunResult:
     """Structured result from a generic simulator-adapter evaluation."""
@@ -149,7 +152,8 @@ def _normalize_parameter_grid(
     parameter_grid: Sequence[dict[str, float]],
 ) -> tuple[dict[str, float], ...]:
     normalized: list[dict[str, float]] = []
-    for parameters in parameter_grid:
+    expected_keys: tuple[str, ...] | None = None
+    for index, parameters in enumerate(parameter_grid):
         if not isinstance(parameters, dict) or not parameters:
             raise ValueError("adapter parameter_grid() must return non-empty dictionaries")
         normalized_parameters: dict[str, float] = {}
@@ -163,15 +167,69 @@ def _normalize_parameter_grid(
             if not np.isfinite(value):
                 raise ValueError("adapter parameter values must be finite")
             normalized_parameters[name] = value
-        normalized.append(dict(sorted(normalized_parameters.items())))
+        normalized_parameters = dict(sorted(normalized_parameters.items()))
+        normalized_keys = tuple(normalized_parameters.keys())
+        if expected_keys is None:
+            expected_keys = normalized_keys
+        elif normalized_keys != expected_keys:
+            raise ValueError(
+                "adapter parameter_grid() entries must share the same parameter keys; "
+                f"expected keys {list(expected_keys)} but entry {index} had keys {list(normalized_keys)}"
+            )
+        normalized.append(normalized_parameters)
     if not normalized:
         raise ValueError("adapter parameter_grid() must not be empty")
     return tuple(normalized)
 
 
-def _adapter_score_task(task: tuple[SimulatorAdapter, dict[str, float]]) -> float:
-    adapter, parameters = task
+def _set_simulator_adapter_worker(adapter: SimulatorAdapter) -> None:
+    global _SIMULATOR_ADAPTER_WORKER
+    _SIMULATOR_ADAPTER_WORKER = adapter
+
+
+def _adapter_score_task(parameters: dict[str, float]) -> float:
+    adapter = _SIMULATOR_ADAPTER_WORKER
+    if adapter is None:
+        raise RuntimeError("simulator adapter worker is not initialized")
     return float(adapter.score(adapter.simulate(parameters)))
+
+
+def _score_adapter(adapter: SimulatorAdapter, parameters: dict[str, float]) -> float:
+    return float(adapter.score(adapter.simulate(parameters)))
+
+
+def _validate_simulator_adapter_result(
+    result: SimulatorAdapterRunResult,
+) -> SimulatorAdapterRunResult:
+    if not isinstance(result, SimulatorAdapterRunResult):
+        raise TypeError("result must be a SimulatorAdapterRunResult")
+    if not result.parameter_grid:
+        raise ValueError("result.parameter_grid must not be empty")
+
+    scores = np.asarray(result.scores)
+    accepted = np.asarray(result.accepted)
+    if scores.ndim != 1:
+        raise ValueError("result.scores must be a 1-D array")
+    if accepted.ndim != 1:
+        raise ValueError("result.accepted must be a 1-D array")
+
+    candidate_count = len(result.parameter_grid)
+    if len(scores) != candidate_count or len(accepted) != candidate_count:
+        raise ValueError(
+            "result.scores, result.accepted, and result.parameter_grid must have matching lengths"
+        )
+    if not np.all(np.isfinite(scores)):
+        raise ValueError("result.scores must contain only finite values")
+
+    expected_keys = tuple(result.parameter_grid[0].keys())
+    for index, parameters in enumerate(result.parameter_grid[1:], start=1):
+        keys = tuple(parameters.keys())
+        if keys != expected_keys:
+            raise ValueError(
+                "result.parameter_grid entries must share the same parameter keys; "
+                f"expected keys {list(expected_keys)} but entry {index} had keys {list(keys)}"
+            )
+    return result
 
 
 def run_simulator_adapter(
@@ -192,21 +250,19 @@ def run_simulator_adapter(
         raise TypeError("execution must be an ExecutionConfig or None")
 
     parameter_grid = _normalize_parameter_grid(adapter.parameter_grid())
-    tasks = [(adapter, parameters) for parameters in parameter_grid]
-
     if execution.worker_count == 1:
-        iterator = map(_adapter_score_task, tasks)
+        iterator = (_score_adapter(adapter, parameters) for parameters in parameter_grid)
     else:
         context = get_context(execution.start_method)
-        pool = context.Pool(execution.worker_count)
-        try:
-            iterator = pool.imap(_adapter_score_task, tasks)
+        with context.Pool(
+            execution.worker_count,
+            initializer=_set_simulator_adapter_worker,
+            initargs=(adapter,),
+        ) as pool:
+            iterator = pool.imap(_adapter_score_task, parameter_grid)
             if execution.show_progress:
-                iterator = tqdm(iterator, total=len(tasks))
+                iterator = tqdm(iterator, total=len(parameter_grid))
             scores = np.asarray(list(iterator), dtype=float)
-        finally:
-            pool.close()
-            pool.join()
         if not np.all(np.isfinite(scores)):
             raise ValueError("adapter scores must be finite")
         accepted = np.asarray(
@@ -225,7 +281,7 @@ def run_simulator_adapter(
         )
 
     if execution.show_progress:
-        iterator = tqdm(iterator, total=len(tasks))
+        iterator = tqdm(iterator, total=len(parameter_grid))
     scores = np.asarray(list(iterator), dtype=float)
     if not np.all(np.isfinite(scores)):
         raise ValueError("adapter scores must be finite")
@@ -315,8 +371,7 @@ def write_simulator_adapter_portfolio(
 ) -> dict[str, Path]:
     """Write report, table, and figure artifacts for a simulator-adapter run."""
 
-    if not isinstance(result, SimulatorAdapterRunResult):
-        raise TypeError("result must be a SimulatorAdapterRunResult")
+    result = _validate_simulator_adapter_result(result)
 
     output_dir = Path(output_dir)
     tables_dir = output_dir / "tables"
@@ -422,8 +477,7 @@ def simulator_adapter_manifest(
 ) -> dict[str, Any]:
     """Build a JSON-serializable manifest for a simulator-adapter run."""
 
-    if not isinstance(result, SimulatorAdapterRunResult):
-        raise TypeError("result must be a SimulatorAdapterRunResult")
+    result = _validate_simulator_adapter_result(result)
     if not isinstance(adapter_name, str) or not adapter_name.strip():
         raise ValueError("adapter_name must be a non-empty string")
     if execution is not None and not isinstance(execution, ExecutionConfig):

@@ -518,22 +518,24 @@ class WorkflowTests(unittest.TestCase):
         context_calls = []
 
         class FakePool:
-            def __init__(self, process_count):
+            def __init__(self, process_count, initializer=None, initargs=()):
                 self.process_count = process_count
+                if initializer is not None:
+                    initializer(*initargs)
 
             def imap(self, func, tasks):
                 return map(func, tasks)
 
-            def close(self):
-                return None
+            def __enter__(self):
+                return self
 
-            def join(self):
-                return None
+            def __exit__(self, exc_type, exc, tb):
+                return False
 
         class FakeContext:
-            def Pool(self, process_count):
+            def Pool(self, process_count, initializer=None, initargs=()):
                 context_calls.append(process_count)
-                return FakePool(process_count)
+                return FakePool(process_count, initializer=initializer, initargs=initargs)
 
         with mock.patch("cmat.workflow.get_context", return_value=FakeContext()) as get_context_mock, mock.patch(
             "cmat.workflow.tqdm"
@@ -551,6 +553,78 @@ class WorkflowTests(unittest.TestCase):
         tqdm_mock.assert_not_called()
         self.assertEqual(context_calls, [3])
         np.testing.assert_array_equal(result.accepted, np.array([True, False]))
+
+    def test_run_simulator_adapter_rejects_inconsistent_parameter_keys(self):
+        class DemoAdapter:
+            def parameter_grid(self):
+                return [{"x": 1.0}, {"y": 2.0}]
+
+            def simulate(self, parameters):
+                return parameters
+
+            def score(self, simulated_observable):
+                return 0.0
+
+            def is_accepted(self, score):
+                return True
+
+            def summarize(self, *, parameter_grid, scores, accepted):
+                return {}
+
+        with self.assertRaisesRegex(ValueError, "same parameter keys"):
+            run_simulator_adapter(
+                DemoAdapter(),
+                execution=ExecutionConfig(worker_count=1, show_progress=False),
+            )
+
+    def test_run_simulator_adapter_terminates_pool_via_context_manager_on_error(self):
+        class DemoAdapter:
+            def parameter_grid(self):
+                return [{"x": 1.0}, {"x": 2.0}]
+
+            def simulate(self, parameters):
+                if parameters["x"] == 2.0:
+                    raise RuntimeError("boom")
+                return parameters["x"]
+
+            def score(self, simulated_observable):
+                return float(simulated_observable)
+
+            def is_accepted(self, score):
+                return True
+
+            def summarize(self, *, parameter_grid, scores, accepted):
+                return {}
+
+        exit_calls = []
+
+        class FakePool:
+            def __init__(self, process_count, initializer=None, initargs=()):
+                if initializer is not None:
+                    initializer(*initargs)
+
+            def imap(self, func, tasks):
+                return map(func, tasks)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                exit_calls.append(exc_type)
+                return False
+
+        class FakeContext:
+            def Pool(self, process_count, initializer=None, initargs=()):
+                return FakePool(process_count, initializer=initializer, initargs=initargs)
+
+        with mock.patch("cmat.workflow.get_context", return_value=FakeContext()):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                run_simulator_adapter(
+                    DemoAdapter(),
+                    execution=ExecutionConfig(worker_count=2, start_method="spawn", show_progress=False),
+                )
+
+        self.assertEqual(exit_calls, [RuntimeError])
 
     def test_write_simulator_adapter_portfolio_writes_report_table_and_figure(self):
         result = SimulatorAdapterRunResult(
@@ -581,6 +655,39 @@ class WorkflowTests(unittest.TestCase):
             table_payload = paths["table"].read_text(encoding="utf-8")
             self.assertIn("damping,stiffness,score,accepted", table_payload)
             self.assertIn("0.6,4.0,0.0,True", table_payload)
+
+    def test_write_simulator_adapter_portfolio_rejects_empty_result(self):
+        result = SimulatorAdapterRunResult(
+            parameter_grid=(),
+            scores=np.array([]),
+            accepted=np.array([], dtype=bool),
+            summary={},
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "must not be empty"):
+                write_simulator_adapter_portfolio(
+                    result,
+                    output_dir=Path(tmpdir) / "portfolio",
+                )
+
+    def test_write_simulator_adapter_portfolio_rejects_mismatched_lengths(self):
+        result = SimulatorAdapterRunResult(
+            parameter_grid=(
+                {"damping": 0.3, "stiffness": 3.0},
+                {"damping": 0.6, "stiffness": 4.0},
+            ),
+            scores=np.array([0.25]),
+            accepted=np.array([False, True]),
+            summary={},
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "matching lengths"):
+                write_simulator_adapter_portfolio(
+                    result,
+                    output_dir=Path(tmpdir) / "portfolio",
+                )
 
     def test_simulator_adapter_manifest_is_json_serializable(self):
         result = SimulatorAdapterRunResult(
@@ -650,6 +757,23 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(payload["runtime"]["python_version"], "3.11.0")
             self.assertEqual(payload["notes"]["mode"], "batch")
             self.assertEqual(payload["best_parameters"], {"damping": 0.6, "stiffness": 4.0})
+
+    def test_simulator_adapter_manifest_rejects_mismatched_lengths(self):
+        result = SimulatorAdapterRunResult(
+            parameter_grid=(
+                {"damping": 0.3, "stiffness": 3.0},
+                {"damping": 0.6, "stiffness": 4.0},
+            ),
+            scores=np.array([0.25, 0.0]),
+            accepted=np.array([False]),
+            summary={},
+        )
+
+        with self.assertRaisesRegex(ValueError, "matching lengths"):
+            simulator_adapter_manifest(
+                result,
+                adapter_name="damped_oscillator",
+            )
 
 
 if __name__ == "__main__":
