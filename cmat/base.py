@@ -380,14 +380,29 @@ class Fitlpf:
         )
         print(f"Planet Mass Reference: {planet_prop[0]['Mp_ref']}")
 
-    def download_data(self, product=None):
+    def download_data(self, product=None, *, use_cache=False):
         """
         Downloads data from the specified planet and returns
         the manifest of downloaded products.
 
+        Args:
+            product: Data product to download.
+            use_cache (bool): If True, skip downloading if .fits files exist in the target directory.
+
         Returns:
             manifest (str): The manifest of downloaded products.
         """
+        import os
+        import glob
+        
+        if use_cache:
+            tess_dir = os.path.join(self.full_datadir, "mastDownload", "TESS")
+            if os.path.exists(tess_dir):
+                fits_files = glob.glob(os.path.join(tess_dir, "**", "*.fits"), recursive=True)
+                if fits_files:
+                    print(f"Cache enabled: Found existing TESS data in {tess_dir}, skipping download.")
+                    return None
+
         if product is None:
             product = ["LC"]
         observations = Observations.query_object(self.planet_name, radius="0 deg")
