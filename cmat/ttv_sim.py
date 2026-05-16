@@ -1,3 +1,5 @@
+import os
+import pathlib
 import warnings
 from numbers import Integral
 
@@ -11,9 +13,11 @@ from tqdm.auto import tqdm
 from .scoring import (
     BAYESIAN_MASS_THRESHOLD_BACKEND,
     Chi2AndRmsMassThresholdScorer,
+    MassThresholds,
     get_chi2,
     get_rms,
 )
+from . import cache
 
 mj_to_ms = 9.5e-4
 me_to_ms = 3.0e-6
@@ -159,7 +163,12 @@ class ttv_sim:
         )
         return ttv_rebound
 
-    def get_ttv_rebound_all(self, number_of_thread=None):
+    def get_ttv_rebound_all(self, number_of_thread=None, *, use_cache=False, cache_path=None, overwrite_cache=False):
+        if use_cache and cache_path is not None and not overwrite_cache:
+            if os.path.exists(cache_path):
+                self.load_ttv_grid_cache(cache_path)
+                return self.ttv_rebound
+
         parameters = []
         for mp2 in self.mp2s:
             for r in self.rs:
@@ -174,6 +183,10 @@ class ttv_sim:
                 )
             )
         self.ttv_rebound = np.array(self.ttv_results)
+
+        if use_cache and cache_path is not None:
+            self.save_ttv_grid_cache(cache_path)
+
         return self.ttv_rebound
 
     def get_m_crit(self):
@@ -407,7 +420,12 @@ class ttv_sim:
         # returning large MEGNO.
 
     # Run the MEGNO simulations for all parameter combinations
-    def run_megno(self, number_of_threads=None):
+    def run_megno(self, number_of_threads=None, *, use_cache=False, cache_path=None, overwrite_cache=False):
+        if use_cache and cache_path is not None and not overwrite_cache:
+            if os.path.exists(cache_path):
+                self.load_megno_grid_cache(cache_path)
+                return self.megno_results
+
         rs = self.rs
         mp2s = self.mp2s
         parameters = []
@@ -424,6 +442,10 @@ class ttv_sim:
                     total=len(parameters),
                 )
             )
+            
+        if use_cache and cache_path is not None:
+            self.save_megno_grid_cache(cache_path)
+
         return self.megno_results
 
     # Plot the MEGNO results as a 2D color map
@@ -455,6 +477,98 @@ class ttv_sim:
         plt.xticks(new_ticks)
         plt.xlabel(r"$P_2/P_1$")
         plt.ylabel(r"$M_2$ [$M_\oplus$]")
+
+    def save_ttv_grid_cache(self, path):
+        """Save the computed TTV grid to an npz cache file."""
+        if not self.ttv_results:
+            raise ValueError("No TTV results to save. Run get_ttv_rebound_all() first.")
+        cache.save_ttv_grid(
+            path,
+            period_ratios=self.rs,
+            companion_masses=self.mp2s,
+            epochs=self.epochs,
+            ttv_mcmc=self.ttv_mcmc,
+            ttv_err=self.ttv_err,
+            ttv_results=self.ttv_results
+        )
+
+    def load_ttv_grid_cache(self, path):
+        """Load and validate a TTV grid from an npz cache file."""
+        cached = cache.load_ttv_grid(path)
+        cache.validate_ttv_grid_compatibility(
+            cached,
+            period_ratios=self.rs,
+            companion_masses=self.mp2s,
+            epochs=self.epochs,
+            ttv_mcmc=self.ttv_mcmc,
+            ttv_err=self.ttv_err
+        )
+        self.ttv_results = list(cached["ttv_results"])
+        self.ttv_rebound = np.array(self.ttv_results)
+
+    def save_megno_grid_cache(self, path):
+        """Save the computed MEGNO grid to an npz cache file."""
+        if not hasattr(self, "megno_results") or not self.megno_results:
+            raise ValueError("No MEGNO results to save. Run run_megno() first.")
+        cache.save_megno_grid(
+            path,
+            period_ratios=self.rs,
+            companion_masses=self.mp2s,
+            megno_results=self.megno_results
+        )
+
+    def load_megno_grid_cache(self, path):
+        """Load and validate a MEGNO grid from an npz cache file."""
+        cached = cache.load_megno_grid(path)
+        cache.validate_megno_grid_compatibility(
+            cached,
+            period_ratios=self.rs,
+            companion_masses=self.mp2s
+        )
+        self.megno_results = list(cached["megno_results"])
+
+    def save_scoring_summary(self, path):
+        """Save the scoring summary to an npz cache file."""
+        if not hasattr(self, "mass_thresholds"):
+            raise ValueError("No scoring summary to save. Run get_m_crit() first.")
+        cache.save_scoring_summary(path, mass_thresholds=self.mass_thresholds)
+
+    def load_scoring_summary(self, path):
+        """Load a scoring summary from an npz cache file."""
+        data = cache.load_scoring_summary(path)
+        self.mass_thresholds = MassThresholds.from_dict(data)
+        self.m_crit_chi2 = self.mass_thresholds.chi2
+        self.m_crit_rms = self.mass_thresholds.rms
+
+    def save_checkpoint(self, run_dir):
+        """Save all available intermediate results to a directory."""
+        run_dir = pathlib.Path(run_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        
+        if self.ttv_results:
+            self.save_ttv_grid_cache(run_dir / "ttv_grid.npz")
+        
+        if hasattr(self, "megno_results") and self.megno_results:
+            self.save_megno_grid_cache(run_dir / "megno_grid.npz")
+            
+        if hasattr(self, "mass_thresholds"):
+            self.save_scoring_summary(run_dir / "scoring_summary.npz")
+
+    def load_checkpoint(self, run_dir):
+        """Load all available intermediate results from a directory."""
+        run_dir = pathlib.Path(run_dir)
+        
+        ttv_path = run_dir / "ttv_grid.npz"
+        if ttv_path.exists():
+            self.load_ttv_grid_cache(ttv_path)
+            
+        megno_path = run_dir / "megno_grid.npz"
+        if megno_path.exists():
+            self.load_megno_grid_cache(megno_path)
+            
+        scoring_path = run_dir / "scoring_summary.npz"
+        if scoring_path.exists():
+            self.load_scoring_summary(scoring_path)
 
 
 TTVSimulation = ttv_sim
