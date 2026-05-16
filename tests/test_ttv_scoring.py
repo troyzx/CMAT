@@ -99,7 +99,7 @@ class TtvScoringTests(unittest.TestCase):
         np.testing.assert_array_equal(scoring_summary["chi2"], [20.0, 10.0])
         np.testing.assert_array_equal(scoring_summary["rms"], [20.0, 10.0])
 
-    def test_get_m_crit_retains_chi2_and_relative_log_likelihood_surfaces(self):
+    def test_get_m_crit_retains_chi2_reduced_chi2_and_relative_log_likelihood_surfaces(self):
         prop = [
             {
                 "orbital_distance": 1.0,
@@ -130,14 +130,20 @@ class TtvScoringTests(unittest.TestCase):
         expected_chi2 = np.array([[0.75, 243.0], [243.0, 243.0]])
         np.testing.assert_allclose(sim.get_chi2_surface(), expected_chi2)
         np.testing.assert_allclose(
+            sim.get_reduced_chi2_surface(),
+            expected_chi2 / 3.0,
+        )
+        np.testing.assert_allclose(
             sim.get_relative_log_likelihood_surface(),
             -0.5 * expected_chi2,
         )
 
         summary = sim.get_scoring_summary()
+        self.assertEqual(summary["chi2_degrees_of_freedom"], 3)
         self.assertEqual(summary["period_ratios"], [1.0, 2.0])
         self.assertEqual(summary["companion_masses"], [10.0, 20.0])
         np.testing.assert_allclose(summary["chi2_surface"], expected_chi2)
+        np.testing.assert_allclose(summary["reduced_chi2_surface"], expected_chi2 / 3.0)
         np.testing.assert_allclose(
             summary["relative_log_likelihood_surface"],
             -0.5 * expected_chi2,
@@ -168,11 +174,46 @@ class TtvScoringTests(unittest.TestCase):
         ]
         sim.get_m_crit()
 
-        fig, ax = sim.plot_chi2_contour(levels=4)
+        fig, ax = sim.plot_chi2_contour(vmin=0.0, vmax=sim.mass_thresholds.chi2_threshold)
 
         self.assertEqual(ax.get_xlabel(), r"$P_2/P_1$")
-        self.assertEqual(ax.get_ylabel(), r"$M_2$ [$M_\oplus$]")
+        self.assertEqual(ax.get_ylabel(), r"Mass [$M_\oplus$]")
+        self.assertEqual(ax.get_yscale(), "log")
         self.assertGreaterEqual(len(fig.axes), 2)
+        plt.close(fig)
+
+    def test_plot_chi2_contour_supports_reduced_chi2_surface(self):
+        prop = [
+            {
+                "orbital_distance": 1.0,
+                "orbital_period": 1.0,
+                "Mp": 1.0,
+                "Ms": 1.0,
+            }
+        ]
+        sim = ttv_sim(
+            epochs=np.array([0, 1, 2]),
+            ttv_mcmc=np.array([1.0, 1.0, 1.0]),
+            ttv_err=np.ones(3),
+            rs=np.array([1.0, 2.0]),
+            mp2s=np.array([10.0, 20.0]),
+            prop=prop,
+        )
+        sim.ttv_results = [
+            np.array([0.5, 0.5, 0.5, 0.5]),
+            np.array([10.0, 10.0, 10.0, 10.0]),
+            np.array([10.0, 10.0, 10.0, 10.0]),
+            np.array([10.0, 10.0, 10.0, 10.0]),
+        ]
+        sim.get_m_crit()
+
+        fig, _ = sim.plot_chi2_contour(
+            statistic="reduced_chi2",
+            vmin=0.0,
+            vmax=sim.mass_thresholds.chi2_threshold / 3.0,
+        )
+
+        self.assertIn("reduced", fig.axes[1].get_ylabel())
         plt.close(fig)
 
     def test_plot_chi2_contour_supports_relative_log_likelihood_surface(self):
@@ -208,7 +249,7 @@ class TtvScoringTests(unittest.TestCase):
         self.assertIn("log likelihood", fig.axes[1].get_ylabel())
         plt.close(fig)
 
-    def test_plot_chi2_contour_rejects_constant_finite_surface(self):
+    def test_plot_chi2_contour_draws_constant_finite_surface_with_pcolor(self):
         prop = [
             {
                 "orbital_distance": 1.0,
@@ -234,8 +275,11 @@ class TtvScoringTests(unittest.TestCase):
         ]
         sim.get_m_crit()
 
-        with self.assertRaisesRegex(ValueError, "must vary across the grid"):
-            sim.plot_chi2_contour(levels=4)
+        fig, ax = sim.plot_chi2_contour()
+
+        self.assertEqual(ax.get_yscale(), "log")
+        self.assertGreaterEqual(len(fig.axes), 2)
+        plt.close(fig)
 
     def test_get_m_crit_ignores_zero_signal_rows(self):
         prop = [

@@ -224,6 +224,30 @@ class ttv_sim:
             raise ValueError("chi2_surface is only available from the chi2_rms scoring backend")
         return np.asarray(thresholds.chi2_surface, dtype=float)
 
+    def get_reduced_chi2_surface(self, *, degrees_of_freedom=None):
+        """Return chi2 / dof on the current (companion_mass, period_ratio) grid.
+
+        By default this uses the same degrees of freedom as the stored
+        ``chi2_threshold``, namely ``len(ttv_mcmc)``.  This treats the
+        simulated TTV signal as a fixed template (no free parameters),
+        so the number of fitted parameters is zero.  If your workflow
+        includes additional fitted parameters, pass an explicit
+        ``degrees_of_freedom = len(ttv_mcmc) - n_params``.
+        """
+
+        thresholds = self.get_mass_thresholds()
+        if thresholds.chi2_surface is None:
+            raise ValueError("reduced_chi2_surface is only available from the chi2_rms scoring backend")
+        if degrees_of_freedom is None:
+            if thresholds.reduced_chi2_surface is not None:
+                return np.asarray(thresholds.reduced_chi2_surface, dtype=float)
+            degrees_of_freedom = thresholds.chi2_degrees_of_freedom
+        if degrees_of_freedom is None:
+            raise ValueError("degrees_of_freedom is required when no stored default is available")
+        if degrees_of_freedom <= 0:
+            raise ValueError("degrees_of_freedom must be positive")
+        return np.asarray(thresholds.chi2_surface, dtype=float) / float(degrees_of_freedom)
+
     def get_relative_log_likelihood_surface(self):
         """Return the latest relative Gaussian log-likelihood proxy, -0.5 * chi2."""
 
@@ -238,13 +262,18 @@ class ttv_sim:
         self,
         *,
         statistic="chi2",
-        levels=20,
+        degrees_of_freedom=None,
+        levels=None,
+        vmin=None,
+        vmax=None,
         ax=None,
-        cmap="viridis",
+        cmap="plasma",
         show_threshold=True,
         threshold_color="white",
+        figsize=(4, 3.2),
+        dpi=200,
     ):
-        """Plot a contour map of chi2 or relative Gaussian log-likelihood proxy.
+        """Plot a score map in the period-ratio vs companion-mass plane.
 
         The score surface is shaped as (len(companion_masses), len(period_ratios)),
         with rows corresponding to companion masses and columns corresponding to
@@ -255,13 +284,32 @@ class ttv_sim:
         if statistic == "chi2":
             surface = self.get_chi2_surface()
             colorbar_label = r"$\chi^2$"
+            threshold_value = thresholds.chi2_threshold
+        elif statistic in {"reduced_chi2", "chi2_reduced"}:
+            surface = self.get_reduced_chi2_surface(
+                degrees_of_freedom=degrees_of_freedom
+            )
+            colorbar_label = r"reduced $\chi^2$"
+            if degrees_of_freedom is None:
+                degrees_of_freedom = thresholds.chi2_degrees_of_freedom
+            threshold_value = (
+                None
+                if thresholds.chi2_threshold is None or degrees_of_freedom is None
+                else thresholds.chi2_threshold / float(degrees_of_freedom)
+            )
         elif statistic in {"relative_log_likelihood", "log_likelihood", "loglike"}:
             surface = self.get_relative_log_likelihood_surface()
             colorbar_label = r"relative log likelihood proxy $(-\chi^2 / 2)$"
+            threshold_value = None
         else:
             raise ValueError(
-                "statistic must be 'chi2' or 'relative_log_likelihood'"
+                "statistic must be 'chi2', 'reduced_chi2', or 'relative_log_likelihood'"
             )
+        if statistic in {"chi2", "reduced_chi2", "chi2_reduced"}:
+            if vmin is None:
+                vmin = 0.0
+            if vmax is None and threshold_value is not None:
+                vmax = threshold_value
 
         period_ratios = (
             np.asarray(thresholds.period_ratios, dtype=float)
@@ -280,45 +328,48 @@ class ttv_sim:
         if not np.any(np.isfinite(surface)):
             raise ValueError("score surface must contain at least one finite value")
         finite_surface = surface[np.isfinite(surface)]
-        if np.allclose(finite_surface, finite_surface[0]):
-            raise ValueError("score surface must vary across the grid for contour plotting")
+        surface_varies = not np.allclose(finite_surface, finite_surface[0])
 
         if ax is None:
-            fig, ax = plt.subplots(figsize=(7, 5))
+            fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
         else:
             fig = ax.figure
 
         masked_surface = np.ma.masked_invalid(surface)
-        contour = ax.contourf(
-            period_ratios,
-            companion_masses,
+        x_grid, y_grid = np.meshgrid(period_ratios, companion_masses)
+        mesh = ax.pcolor(
+            x_grid,
+            y_grid,
             masked_surface,
-            levels=levels,
             cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
         )
-        colorbar = fig.colorbar(contour, ax=ax)
+        colorbar = fig.colorbar(mesh, ax=ax)
         colorbar.set_label(colorbar_label)
 
         if (
-            statistic == "chi2"
+            statistic in {"chi2", "reduced_chi2", "chi2_reduced"}
             and show_threshold
-            and thresholds.chi2_threshold is not None
-            and np.isfinite(thresholds.chi2_threshold)
-            and np.nanmin(surface) <= thresholds.chi2_threshold <= np.nanmax(surface)
+            and threshold_value is not None
+            and np.isfinite(threshold_value)
+            and surface_varies
+            and np.nanmin(surface) <= threshold_value <= np.nanmax(surface)
         ):
             threshold_contour = ax.contour(
                 period_ratios,
                 companion_masses,
                 masked_surface,
-                levels=[thresholds.chi2_threshold],
+                levels=[threshold_value],
                 colors=threshold_color,
                 linewidths=1.2,
             )
-            ax.clabel(threshold_contour, fmt={thresholds.chi2_threshold: "chi2 limit"})
+            contour_label = "chi2 limit" if statistic == "chi2" else "reduced chi2 limit"
+            ax.clabel(threshold_contour, fmt={threshold_value: contour_label})
 
         ax.set_xlabel(r"$P_2/P_1$")
-        ax.set_ylabel(r"$M_2$ [$M_\oplus$]")
-        ax.set_title("TTV score surface")
+        ax.set_ylabel(r"Mass [$M_\oplus$]")
+        ax.set_yscale("log")
         ax.grid(alpha=0.25)
         return fig, ax
 
@@ -385,7 +436,7 @@ class ttv_sim:
         ax.set_xlim(extent[0], extent[1])
         ax.set_xlabel("$P_2/P_1$")
         ax.set_ylim(extent[2], extent[3])
-        ax.set_ylabel("Mass [$M_j$]")
+        ax.set_ylabel(r"Mass [$M_\oplus$]")
         im = ax.imshow(
             results2d,
             interpolation="none",
@@ -403,7 +454,7 @@ class ttv_sim:
         new_ticks = [1.5, 2, 2.5, 3, 3.3, 3.5, 3.8, 4]
         plt.xticks(new_ticks)
         plt.xlabel(r"$P_2/P_1$")
-        plt.ylabel(r"$M_2$ [$M_j$]")
+        plt.ylabel(r"$M_2$ [$M_\oplus$]")
 
 
 TTVSimulation = ttv_sim

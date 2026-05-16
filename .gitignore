@@ -19,3 +19,6 @@ CMAT_astro.egg-info/
 
 # Legacy local packaging file replaced by pyproject.toml
 setup.py
+
+# Untracked data directories
+data/WD 1856/

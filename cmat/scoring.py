@@ -138,7 +138,9 @@ class MassThresholds:
     backend: str = DEFAULT_MASS_THRESHOLD_BACKEND
     chi2_threshold: float | None = None
     rms_threshold: float | None = None
+    chi2_degrees_of_freedom: int | None = None
     chi2_surface: np.ndarray | None = None
+    reduced_chi2_surface: np.ndarray | None = None
     relative_log_likelihood_surface: np.ndarray | None = None
     period_ratios: np.ndarray | None = None
     companion_masses: np.ndarray | None = None
@@ -152,8 +154,14 @@ class MassThresholds:
             "chi2_threshold": self.chi2_threshold,
             "rms_threshold": self.rms_threshold,
         }
+        if self.chi2_degrees_of_freedom is not None:
+            payload["chi2_degrees_of_freedom"] = int(self.chi2_degrees_of_freedom)
         if self.chi2_surface is not None:
             payload["chi2_surface"] = np.asarray(self.chi2_surface).tolist()
+        if self.reduced_chi2_surface is not None:
+            payload["reduced_chi2_surface"] = np.asarray(
+                self.reduced_chi2_surface
+            ).tolist()
         if self.relative_log_likelihood_surface is not None:
             payload["relative_log_likelihood_surface"] = np.asarray(
                 self.relative_log_likelihood_surface
@@ -211,19 +219,21 @@ class Chi2AndRmsMassThresholdScorer:
         period_ratios,
         companion_masses,
     ) -> MassThresholds:
+        chi2_degrees_of_freedom = int(len(ttv_mcmc))
         chi2 = get_chi2_v(
             ttv_rebound=np.array(ttv_results),
             epoch=epoch,
             ttv_mcmc=ttv_mcmc,
             ttv_err=ttv_err,
         )
-        chi2_crit = scipy.stats.chi2.ppf(0.997, len(ttv_mcmc))
+        chi2_crit = scipy.stats.chi2.ppf(0.997, chi2_degrees_of_freedom)
 
         rms = get_rms_v(ttv_results)
         rms_crit = np.sqrt(np.mean(ttv_mcmc**2))
 
         chi2_2d = np.array(chi2).reshape(len(companion_masses), len(period_ratios))
         rms_2d = np.array(rms).reshape(len(companion_masses), len(period_ratios))
+        reduced_chi2_2d = chi2_2d / chi2_degrees_of_freedom
         valid_2d = np.isfinite(chi2_2d) & np.isfinite(rms_2d)
 
         return MassThresholds(
@@ -244,7 +254,9 @@ class Chi2AndRmsMassThresholdScorer:
             backend=DEFAULT_MASS_THRESHOLD_BACKEND,
             chi2_threshold=chi2_crit,
             rms_threshold=rms_crit,
+            chi2_degrees_of_freedom=chi2_degrees_of_freedom,
             chi2_surface=chi2_2d,
+            reduced_chi2_surface=reduced_chi2_2d,
             relative_log_likelihood_surface=-0.5 * chi2_2d,
             period_ratios=np.asarray(period_ratios, dtype=float),
             companion_masses=np.asarray(companion_masses, dtype=float),
