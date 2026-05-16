@@ -286,13 +286,42 @@ class Fitlpf:
         self.ttv_mcmc = None
         self.fit_single_v = None
 
-    def get_parameter(self):
+    def get_parameter(self, *, use_cache=False, cache_path=None, overwrite_cache=False):
         """
         Retrieves the parameters for the given planet.
+
+        Args:
+            use_cache (bool): If True, attempt to load from or save to cache.
+            cache_path (str): Path to the cache file (JSON format).
+            overwrite_cache (bool): If True, recompute and overwrite cache.
 
         Returns:
             None
         """
+        import os
+        import json
+        import pathlib
+
+        if use_cache and cache_path and not overwrite_cache:
+            if os.path.exists(cache_path):
+                with open(cache_path, "r") as f:
+                    cached_data = json.load(f)
+                self.ticid = cached_data["ticid"]
+                self.prop = cached_data["prop"]
+                
+                transit_time = self.prop[0]["transit_time"] + 2.4e6 + 0.5
+                transit_time_err = max(
+                    self.prop[0]["transit_time_lower"], self.prop[0]["transit_time_upper"]
+                )
+                orbital_period = self.prop[0]["orbital_period"]
+                orbital_period_err = max(
+                    self.prop[0]["orbital_period_lower"], self.prop[0]["orbital_period_upper"]
+                )
+                self.period = ufloat(orbital_period, orbital_period_err)
+                self.zero_epoch = ufloat(transit_time, transit_time_err)
+                self.print_parameters()
+                return
+
         planet_name = self.planet_name
         ticid = get_id(planet_name)
         self.prop = get_prop(planet_name)
@@ -308,6 +337,14 @@ class Fitlpf:
         self.zero_epoch = ufloat(transit_time, transit_time_err)
         self.ticid = ticid
         self.print_parameters()
+
+        if use_cache and cache_path:
+            pathlib.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "w") as f:
+                json.dump({
+                    "ticid": self.ticid,
+                    "prop": self.prop
+                }, f, indent=2)
 
     def print_parameters(self):
         """
