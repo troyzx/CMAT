@@ -72,9 +72,18 @@ simulation.ttv_results = [
     simulation.calculate_rebound((1.5, 20.0)),
 ]
 chi2_limit, rms_limit = simulation.get_critical_masses()
+chi2_surface = simulation.get_chi2_surface()
+relative_log_likelihood_surface = simulation.get_relative_log_likelihood_surface()
 ```
 
 This is not a replacement for the full notebook. It is the smallest currently maintained example of the repository's forward-simulation half.
+
+For grids with at least two period ratios and two companion masses, the same scoring result can be visualized in the `P_2/P_1` by `M_2` plane:
+
+```python
+fig, ax = simulation.plot_chi2_contour(statistic="chi2")
+fig, ax = simulation.plot_chi2_contour(statistic="relative_log_likelihood")
+```
 
 ## Full narrative example
 
