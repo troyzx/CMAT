@@ -138,6 +138,10 @@ class MassThresholds:
     backend: str = DEFAULT_MASS_THRESHOLD_BACKEND
     chi2_threshold: float | None = None
     rms_threshold: float | None = None
+    chi2_surface: np.ndarray | None = None
+    log_likelihood_surface: np.ndarray | None = None
+    period_ratios: np.ndarray | None = None
+    companion_masses: np.ndarray | None = None
     bayesian: BayesianScoringSummary | None = None
 
     def to_dict(self) -> dict[str, object]:
@@ -148,6 +152,16 @@ class MassThresholds:
             "chi2_threshold": self.chi2_threshold,
             "rms_threshold": self.rms_threshold,
         }
+        if self.chi2_surface is not None:
+            payload["chi2_surface"] = np.asarray(self.chi2_surface).tolist()
+        if self.log_likelihood_surface is not None:
+            payload["log_likelihood_surface"] = np.asarray(
+                self.log_likelihood_surface
+            ).tolist()
+        if self.period_ratios is not None:
+            payload["period_ratios"] = np.asarray(self.period_ratios).tolist()
+        if self.companion_masses is not None:
+            payload["companion_masses"] = np.asarray(self.companion_masses).tolist()
         if self.bayesian is not None:
             payload["bayesian"] = _serialize_value(self.bayesian)
         return payload
@@ -230,6 +244,10 @@ class Chi2AndRmsMassThresholdScorer:
             backend=DEFAULT_MASS_THRESHOLD_BACKEND,
             chi2_threshold=chi2_crit,
             rms_threshold=rms_crit,
+            chi2_surface=chi2_2d,
+            log_likelihood_surface=-0.5 * chi2_2d,
+            period_ratios=np.asarray(period_ratios, dtype=float),
+            companion_masses=np.asarray(companion_masses, dtype=float),
         )
 
 

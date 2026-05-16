@@ -216,6 +216,101 @@ class ttv_sim:
 
         return self.get_mass_thresholds().to_dict()
 
+    def get_chi2_surface(self):
+        """Return the latest chi-squared surface on the (mp2, r) grid."""
+
+        thresholds = self.get_mass_thresholds()
+        if thresholds.chi2_surface is None:
+            raise ValueError("chi2_surface is only available from the chi2_rms scoring backend")
+        return np.asarray(thresholds.chi2_surface, dtype=float)
+
+    def get_log_likelihood_surface(self):
+        """Return the latest relative log-likelihood surface, -0.5 * chi2."""
+
+        thresholds = self.get_mass_thresholds()
+        if thresholds.log_likelihood_surface is None:
+            raise ValueError(
+                "log_likelihood_surface is only available from the chi2_rms scoring backend"
+            )
+        return np.asarray(thresholds.log_likelihood_surface, dtype=float)
+
+    def plot_chi2_contour(
+        self,
+        *,
+        statistic="chi2",
+        levels=20,
+        ax=None,
+        cmap="viridis",
+        show_threshold=True,
+    ):
+        """Plot a contour map of chi2 or relative log likelihood in r-mp2 space."""
+
+        thresholds = self.get_mass_thresholds()
+        if statistic == "chi2":
+            surface = self.get_chi2_surface()
+            colorbar_label = r"$\chi^2$"
+        elif statistic in {"log_likelihood", "loglike"}:
+            surface = self.get_log_likelihood_surface()
+            colorbar_label = r"relative log likelihood $(-\chi^2 / 2)$"
+        else:
+            raise ValueError("statistic must be 'chi2' or 'log_likelihood'")
+
+        period_ratios = (
+            np.asarray(thresholds.period_ratios, dtype=float)
+            if thresholds.period_ratios is not None
+            else np.asarray(self.rs, dtype=float)
+        )
+        companion_masses = (
+            np.asarray(thresholds.companion_masses, dtype=float)
+            if thresholds.companion_masses is not None
+            else np.asarray(self.mp2s, dtype=float)
+        )
+        if surface.shape != (len(companion_masses), len(period_ratios)):
+            raise ValueError("score surface shape must match the configured mp2-r grid")
+        if len(period_ratios) < 2 or len(companion_masses) < 2:
+            raise ValueError("contour plotting requires at least a 2x2 mp2-r grid")
+        if not np.any(np.isfinite(surface)):
+            raise ValueError("score surface must contain at least one finite value")
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(7, 5))
+        else:
+            fig = ax.figure
+
+        masked_surface = np.ma.masked_invalid(surface)
+        contour = ax.contourf(
+            period_ratios,
+            companion_masses,
+            masked_surface,
+            levels=levels,
+            cmap=cmap,
+        )
+        colorbar = fig.colorbar(contour, ax=ax)
+        colorbar.set_label(colorbar_label)
+
+        if (
+            statistic == "chi2"
+            and show_threshold
+            and thresholds.chi2_threshold is not None
+            and np.isfinite(thresholds.chi2_threshold)
+            and np.nanmin(surface) <= thresholds.chi2_threshold <= np.nanmax(surface)
+        ):
+            threshold_contour = ax.contour(
+                period_ratios,
+                companion_masses,
+                masked_surface,
+                levels=[thresholds.chi2_threshold],
+                colors="white",
+                linewidths=1.2,
+            )
+            ax.clabel(threshold_contour, fmt={thresholds.chi2_threshold: "chi2 limit"})
+
+        ax.set_xlabel(r"$P_2/P_1$")
+        ax.set_ylabel(r"$M_2$ [$M_\oplus$]")
+        ax.set_title("TTV score surface")
+        ax.grid(alpha=0.25)
+        return fig, ax
+
     def simulation_m(self, par):
         r, mp2 = par  # unpack parameters
         prop = self.prop
