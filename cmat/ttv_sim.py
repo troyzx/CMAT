@@ -228,7 +228,11 @@ class ttv_sim:
         """Return chi2 / dof on the current (companion_mass, period_ratio) grid.
 
         By default this uses the same degrees of freedom as the stored
-        `chi2_threshold`, namely `len(ttv_mcmc)`.
+        ``chi2_threshold``, namely ``len(ttv_mcmc)``.  This treats the
+        simulated TTV signal as a fixed template (no free parameters),
+        so the number of fitted parameters is zero.  If your workflow
+        includes additional fitted parameters, pass an explicit
+        ``degrees_of_freedom = len(ttv_mcmc) - n_params``.
         """
 
         thresholds = self.get_mass_thresholds()
@@ -364,7 +368,7 @@ class ttv_sim:
             ax.clabel(threshold_contour, fmt={threshold_value: contour_label})
 
         ax.set_xlabel(r"$P_2/P_1$")
-        ax.set_ylabel(r"Mass [$M_j$]")
+        ax.set_ylabel(r"Mass [$M_\oplus$]")
         ax.set_yscale("log")
         ax.grid(alpha=0.25)
         return fig, ax
@@ -432,7 +436,7 @@ class ttv_sim:
         ax.set_xlim(extent[0], extent[1])
         ax.set_xlabel("$P_2/P_1$")
         ax.set_ylim(extent[2], extent[3])
-        ax.set_ylabel("Mass [$M_j$]")
+        ax.set_ylabel(r"Mass [$M_\oplus$]")
         im = ax.imshow(
             results2d,
             interpolation="none",
@@ -450,7 +454,7 @@ class ttv_sim:
         new_ticks = [1.5, 2, 2.5, 3, 3.3, 3.5, 3.8, 4]
         plt.xticks(new_ticks)
         plt.xlabel(r"$P_2/P_1$")
-        plt.ylabel(r"$M_2$ [$M_j$]")
+        plt.ylabel(r"$M_2$ [$M_\oplus$]")
 
 
 TTVSimulation = ttv_sim

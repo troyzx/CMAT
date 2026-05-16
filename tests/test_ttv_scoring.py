@@ -177,7 +177,7 @@ class TtvScoringTests(unittest.TestCase):
         fig, ax = sim.plot_chi2_contour(vmin=0.0, vmax=sim.mass_thresholds.chi2_threshold)
 
         self.assertEqual(ax.get_xlabel(), r"$P_2/P_1$")
-        self.assertEqual(ax.get_ylabel(), r"Mass [$M_j$]")
+        self.assertEqual(ax.get_ylabel(), r"Mass [$M_\oplus$]")
         self.assertEqual(ax.get_yscale(), "log")
         self.assertGreaterEqual(len(fig.axes), 2)
         plt.close(fig)

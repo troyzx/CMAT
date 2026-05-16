@@ -405,7 +405,7 @@ Important attributes and methods:
 | `get_mass_thresholds()` | method | Return the full `MassThresholds` object, including experimental Bayesian summaries |
 | `get_scoring_summary()` | method | Return a JSON-serializable summary of the latest scoring result |
 | `get_chi2_surface()` | method | Return the latest 2D chi2 surface with shape `(len(companion_masses), len(period_ratios))` |
-| `get_reduced_chi2_surface(degrees_of_freedom=None)` | method | Return `chi2 / dof`; defaults to `len(ttv_mcmc)` so it stays consistent with the stored chi2 threshold |
+| `get_reduced_chi2_surface(degrees_of_freedom=None)` | method | Return `chi2 / dof`; defaults to `len(ttv_mcmc)` (fixed-template assumption, no fitted parameters). Pass an explicit `degrees_of_freedom = len(ttv_mcmc) - n_params` if the workflow includes additional fitted parameters |
 | `get_relative_log_likelihood_surface()` | method | Return the latest relative Gaussian log-likelihood proxy, computed as `-0.5 * chi2` up to an additive constant |
 | `plot_chi2_contour(statistic=...)` | method | Plot a `pcolor` score map in the `P_2/P_1` by `M_2` plane for chi2, reduced chi2, or the relative log-likelihood proxy |
 | `simulation_m((r, mp2))` | method | Run one MEGNO simulation |
