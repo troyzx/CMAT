@@ -217,22 +217,22 @@ class ttv_sim:
         return self.get_mass_thresholds().to_dict()
 
     def get_chi2_surface(self):
-        """Return the latest chi-squared surface on the (mp2, r) grid."""
+        """Return the latest chi-squared surface with shape (len(mp2s), len(rs))."""
 
         thresholds = self.get_mass_thresholds()
         if thresholds.chi2_surface is None:
             raise ValueError("chi2_surface is only available from the chi2_rms scoring backend")
         return np.asarray(thresholds.chi2_surface, dtype=float)
 
-    def get_log_likelihood_surface(self):
-        """Return the latest relative log-likelihood surface, -0.5 * chi2."""
+    def get_relative_log_likelihood_surface(self):
+        """Return the latest relative Gaussian log-likelihood proxy, -0.5 * chi2."""
 
         thresholds = self.get_mass_thresholds()
-        if thresholds.log_likelihood_surface is None:
+        if thresholds.relative_log_likelihood_surface is None:
             raise ValueError(
-                "log_likelihood_surface is only available from the chi2_rms scoring backend"
+                "relative_log_likelihood_surface is only available from the chi2_rms scoring backend"
             )
-        return np.asarray(thresholds.log_likelihood_surface, dtype=float)
+        return np.asarray(thresholds.relative_log_likelihood_surface, dtype=float)
 
     def plot_chi2_contour(
         self,
@@ -242,18 +242,26 @@ class ttv_sim:
         ax=None,
         cmap="viridis",
         show_threshold=True,
+        threshold_color="white",
     ):
-        """Plot a contour map of chi2 or relative log likelihood in r-mp2 space."""
+        """Plot a contour map of chi2 or relative Gaussian log-likelihood proxy.
+
+        The score surface is shaped as (len(companion_masses), len(period_ratios)),
+        with rows corresponding to companion masses and columns corresponding to
+        period ratios.
+        """
 
         thresholds = self.get_mass_thresholds()
         if statistic == "chi2":
             surface = self.get_chi2_surface()
             colorbar_label = r"$\chi^2$"
-        elif statistic in {"log_likelihood", "loglike"}:
-            surface = self.get_log_likelihood_surface()
-            colorbar_label = r"relative log likelihood $(-\chi^2 / 2)$"
+        elif statistic in {"relative_log_likelihood", "log_likelihood", "loglike"}:
+            surface = self.get_relative_log_likelihood_surface()
+            colorbar_label = r"relative log likelihood proxy $(-\chi^2 / 2)$"
         else:
-            raise ValueError("statistic must be 'chi2' or 'log_likelihood'")
+            raise ValueError(
+                "statistic must be 'chi2' or 'relative_log_likelihood'"
+            )
 
         period_ratios = (
             np.asarray(thresholds.period_ratios, dtype=float)
@@ -271,6 +279,9 @@ class ttv_sim:
             raise ValueError("contour plotting requires at least a 2x2 mp2-r grid")
         if not np.any(np.isfinite(surface)):
             raise ValueError("score surface must contain at least one finite value")
+        finite_surface = surface[np.isfinite(surface)]
+        if np.allclose(finite_surface, finite_surface[0]):
+            raise ValueError("score surface must vary across the grid for contour plotting")
 
         if ax is None:
             fig, ax = plt.subplots(figsize=(7, 5))
@@ -300,7 +311,7 @@ class ttv_sim:
                 companion_masses,
                 masked_surface,
                 levels=[thresholds.chi2_threshold],
-                colors="white",
+                colors=threshold_color,
                 linewidths=1.2,
             )
             ax.clabel(threshold_contour, fmt={thresholds.chi2_threshold: "chi2 limit"})

@@ -404,9 +404,9 @@ Important attributes and methods:
 | `get_m_crit()` | method | Legacy-compatible chi2/RMS return signature; Bayesian mode warns and returns empty legacy arrays |
 | `get_mass_thresholds()` | method | Return the full `MassThresholds` object, including experimental Bayesian summaries |
 | `get_scoring_summary()` | method | Return a JSON-serializable summary of the latest scoring result |
-| `get_chi2_surface()` | method | Return the latest 2D chi2 surface on the companion-mass by period-ratio grid |
-| `get_log_likelihood_surface()` | method | Return the latest relative log-likelihood surface, computed as `-0.5 * chi2` |
-| `plot_chi2_contour(statistic=...)` | method | Plot a contour map in the `P_2/P_1` by `M_2` plane for chi2 or relative log likelihood |
+| `get_chi2_surface()` | method | Return the latest 2D chi2 surface with shape `(len(companion_masses), len(period_ratios))` |
+| `get_relative_log_likelihood_surface()` | method | Return the latest relative Gaussian log-likelihood proxy, computed as `-0.5 * chi2` up to an additive constant |
+| `plot_chi2_contour(statistic=...)` | method | Plot a contour map in the `P_2/P_1` by `M_2` plane for chi2 or the relative log-likelihood proxy |
 | `simulation_m((r, mp2))` | method | Run one MEGNO simulation |
 | `run_megno(number_of_threads)` | method | Run MEGNO across the full grid |
 | `plot_megno()` | method | Plot the MEGNO map |
@@ -416,7 +416,7 @@ Important attributes and methods:
 
 `get_critical_masses()` and `get_m_crit()` return the same pair of arrays for the legacy chi2/RMS backend: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion, and grid points whose REBOUND integration terminated early are excluded explicitly instead of being treated as finite constraints.
 
-The default `chi2_rms` backend also retains the full chi2 score surface used to derive those limits. After `get_critical_masses()` or `get_m_crit()`, call `get_chi2_surface()` to inspect the raw `(companion_mass, period_ratio)` grid, `get_log_likelihood_surface()` to inspect the relative `-0.5 * chi2` transform, or `plot_chi2_contour(statistic="chi2")` / `plot_chi2_contour(statistic="log_likelihood")` to draw the corresponding contour map. Contour plotting requires at least a 2x2 grid.
+The default `chi2_rms` backend also retains the full chi2 score surface used to derive the legacy chi2 critical-mass curve. `chi2_surface` is shaped as `(len(companion_masses), len(period_ratios))`, with rows corresponding to companion masses and columns corresponding to period ratios. After `get_critical_masses()` or `get_m_crit()`, call `get_chi2_surface()` to inspect that raw grid, `get_relative_log_likelihood_surface()` to inspect the relative Gaussian log-likelihood proxy `-0.5 * chi2` up to an additive constant shared across the grid, or `plot_chi2_contour(statistic="chi2")` / `plot_chi2_contour(statistic="relative_log_likelihood")` to draw the corresponding contour map. Contour plotting requires at least a 2x2 grid and a non-constant finite surface.
 
 When the active backend is Bayesian, `get_m_crit()` remains available only for backward compatibility; the primary result surface is `get_mass_thresholds()`. In that summary, `credible_upper_bound` is a cumulative-posterior credible bound, while `rejection_upper_bound` is the first companion mass rejected by the configured evidence-ratio threshold. The serialized `upper_bound` field remains as a compatibility alias for `credible_upper_bound`.
 
