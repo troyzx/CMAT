@@ -129,6 +129,58 @@ def _serialize_value(value):
     return value
 
 
+def _deserialize_bayesian(data: dict) -> BayesianScoringSummary:
+    nuisance_params = {
+        k: BayesianPosteriorInterval(**v) for k, v in data["nuisance_parameters"].items()
+    }
+    
+    posteriors = []
+    for p in data["mass_limits"]["posterior_by_period_ratio"]:
+        posteriors.append(BayesianMassPosterior(
+            period_ratio=p["period_ratio"],
+            masses=np.array(p["masses"]),
+            log_evidence=np.array(p["log_evidence"]),
+            model_probabilities=np.array(p["model_probabilities"]),
+            cumulative_probability=np.array(p["cumulative_probability"]),
+            posterior_predictive_score=np.array(p["posterior_predictive_score"]),
+            best_mass=p["best_mass"],
+            credible_upper_bound=p["credible_upper_bound"],
+            rejection_upper_bound=p["rejection_upper_bound"],
+            upper_bound=p["upper_bound"],
+        ))
+        
+    mass_limits = BayesianMassLimitCurve(
+        period_ratios=np.array(data["mass_limits"]["period_ratios"]),
+        evaluated_masses=np.array(data["mass_limits"]["evaluated_masses"]),
+        credible_upper_bound=tuple(data["mass_limits"]["credible_upper_bound"]),
+        rejection_upper_bound=tuple(data["mass_limits"]["rejection_upper_bound"]),
+        upper_bound=tuple(data["mass_limits"]["upper_bound"]),
+        units=data["mass_limits"]["units"],
+        posterior_by_period_ratio=tuple(posteriors),
+    )
+    
+    diagnostics = None
+    if data.get("diagnostics"):
+        diagnostics = BayesianSamplerDiagnostics(**data["diagnostics"])
+        
+    return BayesianScoringSummary(
+        status=data["status"],
+        contract_version=data["contract_version"],
+        sampler=data["sampler"],
+        credible_interval=data["credible_interval"],
+        rejection_log_bayes_factor_threshold=data["rejection_log_bayes_factor_threshold"],
+        observed_transit_count=data["observed_transit_count"],
+        sample_count=data["sample_count"],
+        requested_sample_count=data["requested_sample_count"],
+        warmup_draws=data["warmup_draws"],
+        nuisance_parameters=nuisance_params,
+        mass_limits=mass_limits,
+        reference_solution=data["reference_solution"],
+        diagnostics=diagnostics,
+        posterior_samples=data.get("posterior_samples")
+    )
+
+
 @dataclass(frozen=True)
 class MassThresholds:
     """Critical-mass curves derived from one scoring backend over a TTV grid."""
@@ -173,6 +225,28 @@ class MassThresholds:
         if self.bayesian is not None:
             payload["bayesian"] = _serialize_value(self.bayesian)
         return payload
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MassThresholds":
+        kwargs = {
+            "chi2": np.array(data["chi2"]),
+            "rms": np.array(data["rms"]),
+            "backend": data.get("backend", DEFAULT_MASS_THRESHOLD_BACKEND),
+            "chi2_threshold": data.get("chi2_threshold"),
+            "rms_threshold": data.get("rms_threshold"),
+        }
+        
+        if "chi2_degrees_of_freedom" in data:
+            kwargs["chi2_degrees_of_freedom"] = data["chi2_degrees_of_freedom"]
+            
+        for k in ["chi2_surface", "reduced_chi2_surface", "relative_log_likelihood_surface", "period_ratios", "companion_masses"]:
+            if k in data and data[k] is not None:
+                kwargs[k] = np.array(data[k])
+                
+        if data.get("bayesian"):
+            kwargs["bayesian"] = _deserialize_bayesian(data["bayesian"])
+            
+        return cls(**kwargs)
 
 
 class MassThresholdScorer(Protocol):

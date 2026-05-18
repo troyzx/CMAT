@@ -63,6 +63,10 @@ Functions:
 """
 
 import os
+import json
+import pathlib
+import glob
+import warnings
 import numpy as np
 import requests
 import matplotlib.pyplot as plt
@@ -91,6 +95,7 @@ ME_TO_MS = 3.0e-6
 RJ_TO_RS = 0.102792236
 RS_TO_AU = 0.00464913034
 DAY_TO_SEC = 24 * 60 * 60
+FITLPF_PARAMETER_CACHE_SCHEMA_VERSION = "1"
 
 
 def get_id(planet_name: str):
@@ -286,16 +291,7 @@ class Fitlpf:
         self.ttv_mcmc = None
         self.fit_single_v = None
 
-    def get_parameter(self):
-        """
-        Retrieves the parameters for the given planet.
-
-        Returns:
-            None
-        """
-        planet_name = self.planet_name
-        ticid = get_id(planet_name)
-        self.prop = get_prop(planet_name)
+    def _apply_prop(self):
         transit_time = self.prop[0]["transit_time"] + 2.4e6 + 0.5
         transit_time_err = max(
             self.prop[0]["transit_time_lower"], self.prop[0]["transit_time_upper"]
@@ -306,8 +302,56 @@ class Fitlpf:
         )
         self.period = ufloat(orbital_period, orbital_period_err)
         self.zero_epoch = ufloat(transit_time, transit_time_err)
+
+    def get_parameter(self, *, use_cache=False, cache_path=None, overwrite_cache=False):
+        """
+        Retrieves the parameters for the given planet.
+
+        Args:
+            use_cache (bool): If True, attempt to load from or save to cache.
+            cache_path (str): Path to the cache file (JSON format).
+            overwrite_cache (bool): If True, recompute and overwrite cache.
+
+        Returns:
+            None
+        """
+        if use_cache and cache_path and not overwrite_cache:
+            if os.path.exists(cache_path):
+                with open(cache_path, "r") as f:
+                    cached_data = json.load(f)
+                schema_version = cached_data.get("cache_schema_version")
+                if schema_version != FITLPF_PARAMETER_CACHE_SCHEMA_VERSION:
+                    raise ValueError(
+                        f"Unsupported parameter cache schema version: {schema_version!r}"
+                    )
+                cached_planet_name = cached_data.get("planet_name")
+                if cached_planet_name != self.planet_name:
+                    raise ValueError(
+                        "Parameter cache planet_name mismatch: "
+                        f"expected {self.planet_name!r}, found {cached_planet_name!r}"
+                    )
+                self.ticid = cached_data["ticid"]
+                self.prop = cached_data["prop"]
+                self._apply_prop()
+                self.print_parameters()
+                return
+
+        planet_name = self.planet_name
+        ticid = get_id(planet_name)
+        self.prop = get_prop(planet_name)
+        self._apply_prop()
         self.ticid = ticid
         self.print_parameters()
+
+        if use_cache and cache_path:
+            pathlib.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "w") as f:
+                json.dump({
+                    "cache_schema_version": FITLPF_PARAMETER_CACHE_SCHEMA_VERSION,
+                    "planet_name": self.planet_name,
+                    "ticid": self.ticid,
+                    "prop": self.prop,
+                }, f, indent=2)
 
     def print_parameters(self):
         """
@@ -343,14 +387,27 @@ class Fitlpf:
         )
         print(f"Planet Mass Reference: {planet_prop[0]['Mp_ref']}")
 
-    def download_data(self, product=None):
+    def download_data(self, product=None, *, use_cache=False, overwrite_cache=False):
         """
         Downloads data from the specified planet and returns
         the manifest of downloaded products.
 
+        Args:
+            product: Data product to download.
+            use_cache (bool): If True, skip downloading if .fits files exist in the target directory.
+            overwrite_cache (bool): If True, redownload even if data exists.
+
         Returns:
             manifest (str): The manifest of downloaded products.
         """
+        if use_cache and not overwrite_cache:
+            tess_dir = os.path.join(self.full_datadir, "mastDownload", "TESS")
+            if os.path.exists(tess_dir):
+                fits_files = glob.glob(os.path.join(tess_dir, "**", "*.fits"), recursive=True)
+                if fits_files:
+                    print(f"Cache enabled: Found existing TESS data in {tess_dir}, skipping download.")
+                    return None
+
         if product is None:
             product = ["LC"]
         observations = Observations.query_object(self.planet_name, radius="0 deg")
@@ -471,7 +528,7 @@ class Fitlpf:
         pbar.update(1)
         return single
 
-    def fit_singles(self):
+    def fit_singles(self, *, use_cache=False, cache_path=None, overwrite_cache=False):
         """
         Fits transit models to individual light curves.
 
@@ -480,10 +537,35 @@ class Fitlpf:
             Default is 100.
             npop (int): Number of populations for the genetic algorithm.
             Default is 50.
+            use_cache (bool): If True, attempt to load from or save to cache.
+            cache_path (str): Path to the cache file.
+            overwrite_cache (bool): If True, recompute and overwrite cache.
+
+        Warning:
+            The dill cache used by this method is a trusted local cache only.
+            Do not load it from untrusted sources.
 
         Returns:
             None
         """
+        import dill
+
+        if use_cache and cache_path and not overwrite_cache:
+            if os.path.exists(cache_path):
+                warnings.warn(
+                    "Fitlpf.fit_singles() uses dill for a trusted local cache only. "
+                    "Do not load dill cache files from untrusted sources.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                with open(cache_path, "rb") as f:
+                    cached_data = dill.load(f)
+                self.singles = cached_data["singles"]
+                self.post_samples = cached_data["post_samples"]
+                self.tcs = cached_data["tcs"]
+                self.epochs = cached_data["epochs"]
+                return
+
         # self.fit_single_v = np.vectorize(self.fit_single)
         # self.singles = self.fit_single_v(np.arange(len(self.lpf.times)))
         with tqdm(total=len(np.arange(len(self.lpf.times))) + 1) as pbar:
@@ -500,6 +582,16 @@ class Fitlpf:
             self.tcs.append(tc)
 
         self.epochs = epoch_v(getn_v(self.tcs), self.zero_epoch.n, self.period.n)
+
+        if use_cache and cache_path:
+            pathlib.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_path, "wb") as f:
+                dill.dump({
+                    "singles": self.singles,
+                    "post_samples": self.post_samples,
+                    "tcs": self.tcs,
+                    "epochs": self.epochs
+                }, f)
 
     def get_posterior_samples(self):
         """
