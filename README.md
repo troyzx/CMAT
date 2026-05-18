@@ -79,6 +79,8 @@ For new code, prefer `cmat.TransitFitWorkflow` and `cmat.TTVSimulation`. The old
 
 The current industry rebuild also exposes import-safe pure helpers under `cmat.domain` for units, timing, residual scoring, and mass-limit extraction. Those functions are intended for new tests and adapters while the legacy notebook-compatible APIs remain unchanged.
 
+The industry rebuild now also keeps `TTVSimulation` as a compatibility facade while exposing smaller simulation and plotting helpers under `cmat.simulation` and `cmat.plotting` for tests and future workflow or CLI entry points.
+
 ## Example Notebook
 
 Run the included full notebook:

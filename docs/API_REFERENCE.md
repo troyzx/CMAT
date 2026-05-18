@@ -384,7 +384,6 @@ Common call sequence in the current notebook-era workflow:
 6. `plot_tcs()` / `plot_ttv_residuals()` (`plot_ttv_re()` remains available as the legacy alias)
 
 Operational note: this is the most environment-sensitive surface because it depends on the PyTransit stack.
-Security note: `fit_singles(use_cache=True, cache_path=...)` uses a local `dill` cache. Treat that cache as trusted local state only; do not load dill cache files from untrusted sources.
 
 ### `cmat.TTVSimulation`
 
@@ -417,19 +416,43 @@ Important attributes and methods:
 | `get_mass_thresholds()` | method | Return the full `MassThresholds` object, including experimental Bayesian summaries |
 | `get_scoring_summary()` | method | Return a JSON-serializable summary of the latest scoring result |
 | `get_chi2_surface()` | method | Return the latest 2D chi2 surface with shape `(len(companion_masses), len(period_ratios))` |
-| `get_reduced_chi2_surface(degrees_of_freedom=None)` | method | Return `chi2 / dof`; defaults to `len(ttv_mcmc)` (fixed-template assumption, no fitted parameters). Pass an explicit `degrees_of_freedom = len(ttv_mcmc) - n_params` if the workflow includes additional fitted parameters |
 | `get_relative_log_likelihood_surface()` | method | Return the latest relative Gaussian log-likelihood proxy, computed as `-0.5 * chi2` up to an additive constant |
-| `plot_chi2_contour(statistic=...)` | method | Plot a `pcolor` score map in the `P_2/P_1` by `M_2` plane for chi2, reduced chi2, or the relative log-likelihood proxy |
+| `plot_chi2_contour(statistic=...)` | method | Plot a contour map in the `P_2/P_1` by `M_2` plane for chi2 or the relative log-likelihood proxy |
+| `get_reduced_chi2_surface()` | method | Return the latest reduced chi2 surface derived from the retained chi2 grid |
 | `simulation_m((r, mp2))` | method | Run one MEGNO simulation |
 | `run_megno(number_of_threads)` | method | Run MEGNO across the full grid |
 | `plot_megno()` | method | Plot the MEGNO map |
+| `save_ttv_grid_cache(path)` / `load_ttv_grid_cache(path)` | methods | Persist or restore a raw TTV grid cache without going through workflow config |
+| `save_megno_grid_cache(path)` / `load_megno_grid_cache(path)` | methods | Persist or restore a raw MEGNO grid cache without going through workflow config |
+| `save_scoring_summary(path)` / `load_scoring_summary(path)` | methods | Persist or restore the latest JSON-serializable scoring summary |
+| `save_checkpoint(path)` / `load_checkpoint(path)` | methods | Persist or restore the current reduced simulation state bundle |
 | `scoring_backend` | attribute | Backend object used to extract critical-mass curves from the current TTV grid |
 | `mass_thresholds` | attribute | Latest structured `MassThresholds` result after scoring runs |
 | `megno_dt` / `megno_runtime` | attributes | Controls for MEGNO timestep and integration runtime |
 
 `get_critical_masses()` and `get_m_crit()` return the same pair of arrays for the legacy chi2/RMS backend: the first rejected masses under the current `chi^2` threshold and the first rejected masses under the current RMS threshold. A period-ratio column only contributes an entry if the reduced grid actually crosses the corresponding rejection criterion, and grid points whose REBOUND integration terminated early are excluded explicitly instead of being treated as finite constraints.
 
-The default `chi2_rms` backend also retains the full chi2 score surface used to derive the legacy chi2 critical-mass curve. `chi2_surface` is shaped as `(len(companion_masses), len(period_ratios))`, with rows corresponding to companion masses and columns corresponding to period ratios. It also stores a default `reduced_chi2_surface = chi2_surface / len(ttv_mcmc)`, which matches the same degrees of freedom used by the stored `chi2_threshold`. After `get_critical_masses()` or `get_m_crit()`, call `get_chi2_surface()` to inspect the raw grid, `get_reduced_chi2_surface()` to inspect chi-squared normalized by degrees of freedom, `get_relative_log_likelihood_surface()` to inspect the relative Gaussian log-likelihood proxy `-0.5 * chi2` up to an additive constant shared across the grid, or `plot_chi2_contour(statistic="reduced_chi2")` / `plot_chi2_contour(statistic="chi2")` / `plot_chi2_contour(statistic="relative_log_likelihood")` to draw the corresponding map. The plotting helper uses `pcolor`, keeps the mass axis on a log scale, and requires at least a 2x2 grid.
+The default `chi2_rms` backend also retains the full chi2 score surface used to derive the legacy chi2 critical-mass curve. `chi2_surface` is shaped as `(len(companion_masses), len(period_ratios))`, with rows corresponding to companion masses and columns corresponding to period ratios. After `get_critical_masses()` or `get_m_crit()`, call `get_chi2_surface()` to inspect that raw grid, `get_relative_log_likelihood_surface()` to inspect the relative Gaussian log-likelihood proxy `-0.5 * chi2` up to an additive constant shared across the grid, or `plot_chi2_contour(statistic="chi2")` / `plot_chi2_contour(statistic="relative_log_likelihood")` to draw the corresponding contour map. Contour plotting requires at least a 2x2 grid and a non-constant finite surface.
+
+### `cmat.simulation.rebound_ttv`
+
+Focused REBOUND transit-timing helpers for new code and tests. `calculate_rebound_ttv(...)` preserves the legacy `TTVSimulation.calculate_rebound(...)` numerical setup while moving the direct REBOUND dependency out of the compatibility facade.
+
+### `cmat.simulation.megno`
+
+Focused MEGNO helpers for new code and tests. `calculate_megno(...)` preserves the legacy `simulation_m(...)` setup, and `run_megno_grid(...)` keeps the same grid ordering and optional cache reuse behavior for reduced workflows.
+
+### `cmat.simulation.execution`
+
+Import-safe grid and multiprocessing helpers. New code should prefer `build_mass_ratio_parameter_grid(...)`, `resolve_worker_count(...)`, and `maybe_run_in_pool(...)` instead of rebuilding the legacy iteration and pool control logic inline.
+
+### `cmat.plotting.score_surfaces`
+
+Array-based plotting helpers for chi2, reduced-chi2, and relative log-likelihood surfaces. New code can plot score grids directly from structured arrays without instantiating `TTVSimulation`.
+
+### `cmat.plotting.megno`
+
+Array-based plotting helpers for MEGNO grids. The legacy `TTVSimulation.plot_megno()` method now delegates to this module while keeping notebook-compatible plotting behavior available through the facade.
 
 When the active backend is Bayesian, `get_m_crit()` remains available only for backward compatibility; the primary result surface is `get_mass_thresholds()`. In that summary, `credible_upper_bound` is a cumulative-posterior credible bound, while `rejection_upper_bound` is the first companion mass rejected by the configured evidence-ratio threshold. The serialized `upper_bound` field remains as a compatibility alias for `credible_upper_bound`.
 
