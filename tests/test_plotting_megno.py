@@ -26,7 +26,7 @@ class PlottingMegnoTests(unittest.TestCase):
         )
 
         self.assertEqual(ax.get_xlabel(), r"$P_2/P_1$")
-        self.assertEqual(ax.get_ylabel(), r"$M_2$ [$M_j$]")
+        self.assertEqual(ax.get_ylabel(), r"$M_2$ [$M_\oplus$]")
         self.assertGreaterEqual(len(fig.axes), 2)
         plt.close(fig)
 
@@ -52,5 +52,5 @@ class PlottingMegnoTests(unittest.TestCase):
         fig, ax = sim.plot_megno()
 
         self.assertEqual(ax.get_xlabel(), r"$P_2/P_1$")
-        self.assertEqual(ax.get_ylabel(), r"$M_2$ [$M_j$]")
+        self.assertEqual(ax.get_ylabel(), r"$M_2$ [$M_\oplus$]")
         plt.close(fig)

@@ -36,7 +36,7 @@ def plot_megno_surface(
     ax.set_xlim(extent[0], extent[1])
     ax.set_xlabel("$P_2/P_1$")
     ax.set_ylim(extent[2], extent[3])
-    ax.set_ylabel("Mass [$M_j$]")
+    ax.set_ylabel("Mass [$M_\\oplus$]")
     image = ax.imshow(
         results2d,
         interpolation="none",
@@ -53,5 +53,5 @@ def plot_megno_surface(
     ax.grid()
     ax.set_xticks([1.5, 2, 2.5, 3, 3.3, 3.5, 3.8, 4])
     ax.set_xlabel(r"$P_2/P_1$")
-    ax.set_ylabel(r"$M_2$ [$M_j$]")
+    ax.set_ylabel(r"$M_2$ [$M_\oplus$]")
     return fig, ax
