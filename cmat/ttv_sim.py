@@ -308,7 +308,9 @@ class ttv_sim:
         overwrite_cache=False,
     ):
         if use_cache and cache_path is None:
-            raise ValueError("cache_path is required when use_cache=True for run_megno()")
+            raise ValueError(
+                "cache_path is required when use_cache=True for run_megno()"
+            )
         if use_cache and cache_path is not None and Path(cache_path).exists():
             if not overwrite_cache:
                 self.load_megno_grid_cache(cache_path)

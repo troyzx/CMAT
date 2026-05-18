@@ -108,9 +108,12 @@ class SimulationMegnoTests(unittest.TestCase):
                 context_calls.append(process_count)
                 return FakePool()
 
-        with mock.patch("cmat.ttv_sim.get_context", return_value=FakeContext()) as get_context_mock, mock.patch(
-            "cmat.ttv_sim.tqdm"
-        ) as tqdm_mock:
+        with (
+            mock.patch(
+                "cmat.ttv_sim.get_context", return_value=FakeContext()
+            ) as get_context_mock,
+            mock.patch("cmat.ttv_sim.tqdm") as tqdm_mock,
+        ):
             result = sim.run_megno()
 
         get_context_mock.assert_called_once_with("forkserver")
@@ -135,8 +138,12 @@ class SimulationMegnoTests(unittest.TestCase):
             payload = sim.load_megno_grid_cache(cache_path)
 
         np.testing.assert_array_equal(payload["period_ratios"], np.array([1.5, 2.0]))
-        np.testing.assert_array_equal(payload["companion_masses"], np.array([10.0, 20.0]))
-        np.testing.assert_array_equal(payload["megno_results"], np.array([2.0, 2.1, 9.8, 10.0]))
+        np.testing.assert_array_equal(
+            payload["companion_masses"], np.array([10.0, 20.0])
+        )
+        np.testing.assert_array_equal(
+            payload["megno_results"], np.array([2.0, 2.1, 9.8, 10.0])
+        )
 
     def test_run_megno_can_reuse_cache_without_pool(self):
         sim = TTVSimulation(

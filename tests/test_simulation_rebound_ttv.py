@@ -93,8 +93,12 @@ class SimulationReboundTtvTests(unittest.TestCase):
         fake = created[-1]
 
         self.assertEqual(ttv_rebound.shape, (2,))
-        self.assertAlmostEqual(fake.add_calls[0]["r"], prop[0]["Rs"] * ttv_module.rs_to_AU)
-        self.assertAlmostEqual(fake.add_calls[1]["m"], prop[0]["Mp"] * ttv_module.mj_to_ms)
+        self.assertAlmostEqual(
+            fake.add_calls[0]["r"], prop[0]["Rs"] * ttv_module.rs_to_AU
+        )
+        self.assertAlmostEqual(
+            fake.add_calls[1]["m"], prop[0]["Mp"] * ttv_module.mj_to_ms
+        )
         self.assertAlmostEqual(
             fake.add_calls[1]["r"],
             prop[0]["Rp"] * ttv_module.rj_to_rs * ttv_module.rs_to_AU,
