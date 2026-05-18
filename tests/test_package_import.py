@@ -59,12 +59,23 @@ class PackageImportTests(unittest.TestCase):
         self.assertIs(workflow, fitlpf)
         self.assertTrue(hasattr(workflow, "plot_ttv_residuals"))
 
-    def test_preferred_simulation_name_remains_callable_after_submodule_import(self):
-        cmat = importlib.import_module("cmat")
+    def test_plotting_module_import_only_pulls_matplotlib_when_requested(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import cmat.plotting.score_surfaces, sys; "
+                    "assert 'matplotlib' in sys.modules; "
+                    "assert 'rebound' not in sys.modules"
+                ),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
-        importlib.import_module("cmat.ttv_sim")
-
-        self.assertTrue(callable(cmat.TTVSimulation))
+        self.assertEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

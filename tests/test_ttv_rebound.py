@@ -1,9 +1,11 @@
+# ruff: noqa: E402
+
+import importlib
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
-import importlib
 
 import numpy as np
 
@@ -36,6 +38,7 @@ class TtvReboundTests(unittest.TestCase):
             prop=prop,
         )
         ttv_module = importlib.import_module("cmat.ttv_sim")
+        rebound_module = importlib.import_module("cmat.simulation.rebound_ttv")
         created = []
 
         class FakeSimulation:
@@ -62,9 +65,12 @@ class TtvReboundTests(unittest.TestCase):
                 return None
 
             def integrate(self, *_args, **_kwargs):
-                raise ttv_module.rebound.Escape
+                raise rebound_module.rebound.Escape
 
-        with patch("cmat.ttv_sim.rebound.Simulation", side_effect=FakeSimulation):
+        with patch(
+            "cmat.simulation.rebound_ttv.rebound.Simulation",
+            side_effect=FakeSimulation,
+        ):
             ttv_rebound = sim.calculate_rebound((1.5, 10.0))
 
         fake = created[-1]
@@ -139,7 +145,10 @@ class TtvReboundTests(unittest.TestCase):
             def calculate_megno(self):
                 return 2.0
 
-        with patch("cmat.ttv_sim.rebound.Simulation", side_effect=FakeSimulation):
+        with patch(
+            "cmat.simulation.megno.rebound.Simulation",
+            side_effect=FakeSimulation,
+        ):
             megno = sim.simulation_m((1.5, 10.0))
 
         fake = created[0]
