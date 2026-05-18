@@ -64,6 +64,7 @@ def __getattr__(attribute_name):
         }[attribute_name]
     raise AttributeError(f"module 'cmat' has no attribute {attribute_name!r}")
 
+
 """
 This module provides classes and functions for fitting transit light curves
 and simulating transit timing variations (TTVs).

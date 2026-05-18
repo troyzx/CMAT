@@ -8,13 +8,13 @@ and batch runs.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from numbers import Integral
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import numpy as np
-
 
 SUPPORTED_BAYESIAN_NUISANCE_PARAMETERS = frozenset(
     {"epoch_shift", "baseline_offset", "jitter"}
@@ -105,7 +105,9 @@ class TargetConfig:
     product_subgroups: tuple[str, ...] = ("LC",)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "planet_name", _require_text(self.planet_name, "planet_name"))
+        object.__setattr__(
+            self, "planet_name", _require_text(self.planet_name, "planet_name")
+        )
         object.__setattr__(self, "data_dir", Path(self.data_dir))
 
         if isinstance(self.product_subgroups, str):
@@ -114,7 +116,9 @@ class TargetConfig:
             products = tuple(self.product_subgroups)
         if not products:
             raise ValueError("product_subgroups must contain at least one value")
-        products = tuple(_require_text(product, "product_subgroups") for product in products)
+        products = tuple(
+            _require_text(product, "product_subgroups") for product in products
+        )
         object.__setattr__(self, "product_subgroups", products)
 
     @property
@@ -200,7 +204,9 @@ class SimulationGrid:
             "n_transit_simulations",
             _require_positive_int(self.n_transit_simulations, "n_transit_simulations"),
         )
-        object.__setattr__(self, "megno_dt", _require_positive_float(self.megno_dt, "megno_dt"))
+        object.__setattr__(
+            self, "megno_dt", _require_positive_float(self.megno_dt, "megno_dt")
+        )
         object.__setattr__(
             self,
             "megno_runtime",
@@ -239,7 +245,9 @@ class OutputConfig:
     def __post_init__(self) -> None:
         object.__setattr__(self, "root_dir", Path(self.root_dir))
         if self.run_name is not None:
-            object.__setattr__(self, "run_name", _require_text(self.run_name, "run_name"))
+            object.__setattr__(
+                self, "run_name", _require_text(self.run_name, "run_name")
+            )
 
     @property
     def run_dir(self) -> Path:
@@ -352,11 +360,15 @@ class BayesianScoringConfig:
             ),
         )
         if self.rejection_log_bayes_factor_threshold > 0.0:
-            raise ValueError("rejection_log_bayes_factor_threshold must be less than or equal to 0")
+            raise ValueError(
+                "rejection_log_bayes_factor_threshold must be less than or equal to 0"
+            )
         object.__setattr__(
             self,
             "posterior_sample_count",
-            _require_positive_int(self.posterior_sample_count, "posterior_sample_count"),
+            _require_positive_int(
+                self.posterior_sample_count, "posterior_sample_count"
+            ),
         )
         object.__setattr__(
             self,
@@ -416,7 +428,9 @@ class ScoringConfig:
                 + ", ".join(supported_mass_threshold_backends())
             )
         object.__setattr__(self, "backend", backend)
-        if self.bayesian is not None and not isinstance(self.bayesian, BayesianScoringConfig):
+        if self.bayesian is not None and not isinstance(
+            self.bayesian, BayesianScoringConfig
+        ):
             raise TypeError("bayesian must be a BayesianScoringConfig or None")
         if backend == "bayesian":
             object.__setattr__(
@@ -451,7 +465,9 @@ class RunConfig:
             raise TypeError("target must be a TargetConfig")
         if not isinstance(self.fit, FitControls):
             raise TypeError("fit must be a FitControls")
-        if self.simulation is not None and not isinstance(self.simulation, SimulationGrid):
+        if self.simulation is not None and not isinstance(
+            self.simulation, SimulationGrid
+        ):
             raise TypeError("simulation must be a SimulationGrid or None")
         if not isinstance(self.scoring, ScoringConfig):
             raise TypeError("scoring must be a ScoringConfig")
@@ -470,7 +486,9 @@ class RunConfig:
         return {
             "target": self.target.to_dict(),
             "fit": self.fit.to_dict(),
-            "simulation": None if self.simulation is None else self.simulation.to_dict(),
+            "simulation": None
+            if self.simulation is None
+            else self.simulation.to_dict(),
             "scoring": self.scoring.to_dict(),
             "output": self.output.to_dict(),
             "execution": self.execution.to_dict(),

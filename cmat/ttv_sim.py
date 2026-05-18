@@ -1,29 +1,31 @@
 import os
 import pathlib
 import warnings
+from multiprocessing import get_context
 from numbers import Integral
 
+import numpy as np
 import rebound
 import scipy.stats
-import numpy as np
 from matplotlib import pyplot as plt
-from multiprocessing import get_context
 from tqdm.auto import tqdm
 
+from . import cache
+from . import scoring as _scoring
 from .scoring import (
     BAYESIAN_MASS_THRESHOLD_BACKEND,
     Chi2AndRmsMassThresholdScorer,
     MassThresholds,
-    get_chi2,
-    get_rms,
 )
-from . import cache
 
 mj_to_ms = 9.5e-4
 me_to_ms = 3.0e-6
 rj_to_rs = 0.102792236
 rs_to_AU = 0.00464913034
 daytos = 24 * 60 * 60
+
+get_chi2 = _scoring.get_chi2
+get_rms = _scoring.get_rms
 
 
 """
@@ -40,7 +42,9 @@ and find potentially stable configurations.
 
 
 class ttv_sim:
-    def __init__(self, epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80, scoring_backend=None):
+    def __init__(
+        self, epochs, ttv_mcmc, ttv_err, rs, mp2s, prop, N=80, scoring_backend=None
+    ):
         self.epochs = epochs  # The epochs at which to calculate the TTVs
         self.ttv_mcmc = ttv_mcmc  # The TTVs obtained from MCMC fitting
         self.ttv_err = ttv_err  # The errors on the MCMC TTVs
@@ -65,7 +69,9 @@ class ttv_sim:
     def _resolve_worker_count(self, number_of_threads):
         if number_of_threads is None:
             number_of_threads = self.worker_count
-        if isinstance(number_of_threads, bool) or not isinstance(number_of_threads, Integral):
+        if isinstance(number_of_threads, bool) or not isinstance(
+            number_of_threads, Integral
+        ):
             raise TypeError("number_of_threads must be an integer")
         number_of_threads = int(number_of_threads)
         if number_of_threads <= 0:
@@ -102,13 +108,7 @@ class ttv_sim:
             inc=inc1,
             f=f1,
         )  # Primary planet
-        sim.add(
-            m=mp2 * me_to_ms,
-            a=a2,
-            e=e2,
-            inc=inc2,
-            f=f2
-            )  # Companion planet
+        sim.add(m=mp2 * me_to_ms, a=a2, e=e2, inc=inc2, f=f2)  # Companion planet
         sim.move_to_com()
         sim.exit_max_distance = 5.0
 
@@ -163,9 +163,18 @@ class ttv_sim:
         )
         return ttv_rebound
 
-    def get_ttv_rebound_all(self, number_of_thread=None, *, use_cache=False, cache_path=None, overwrite_cache=False):
+    def get_ttv_rebound_all(
+        self,
+        number_of_thread=None,
+        *,
+        use_cache=False,
+        cache_path=None,
+        overwrite_cache=False,
+    ):
         if use_cache and cache_path is None:
-            raise ValueError("cache_path is required when use_cache=True for get_ttv_rebound_all()")
+            raise ValueError(
+                "cache_path is required when use_cache=True for get_ttv_rebound_all()"
+            )
         if use_cache and cache_path is not None and not overwrite_cache:
             if os.path.exists(cache_path):
                 self.load_ttv_grid_cache(cache_path)
@@ -236,7 +245,9 @@ class ttv_sim:
 
         thresholds = self.get_mass_thresholds()
         if thresholds.chi2_surface is None:
-            raise ValueError("chi2_surface is only available from the chi2_rms scoring backend")
+            raise ValueError(
+                "chi2_surface is only available from the chi2_rms scoring backend"
+            )
         return np.asarray(thresholds.chi2_surface, dtype=float)
 
     def get_reduced_chi2_surface(self, *, degrees_of_freedom=None):
@@ -252,16 +263,22 @@ class ttv_sim:
 
         thresholds = self.get_mass_thresholds()
         if thresholds.chi2_surface is None:
-            raise ValueError("reduced_chi2_surface is only available from the chi2_rms scoring backend")
+            raise ValueError(
+                "reduced_chi2_surface is only available from the chi2_rms scoring backend"
+            )
         if degrees_of_freedom is None:
             if thresholds.reduced_chi2_surface is not None:
                 return np.asarray(thresholds.reduced_chi2_surface, dtype=float)
             degrees_of_freedom = thresholds.chi2_degrees_of_freedom
         if degrees_of_freedom is None:
-            raise ValueError("degrees_of_freedom is required when no stored default is available")
+            raise ValueError(
+                "degrees_of_freedom is required when no stored default is available"
+            )
         if degrees_of_freedom <= 0:
             raise ValueError("degrees_of_freedom must be positive")
-        return np.asarray(thresholds.chi2_surface, dtype=float) / float(degrees_of_freedom)
+        return np.asarray(thresholds.chi2_surface, dtype=float) / float(
+            degrees_of_freedom
+        )
 
     def get_relative_log_likelihood_surface(self):
         """Return the latest relative Gaussian log-likelihood proxy, -0.5 * chi2."""
@@ -379,7 +396,9 @@ class ttv_sim:
                 colors=threshold_color,
                 linewidths=1.2,
             )
-            contour_label = "chi2 limit" if statistic == "chi2" else "reduced chi2 limit"
+            contour_label = (
+                "chi2 limit" if statistic == "chi2" else "reduced chi2 limit"
+            )
             ax.clabel(threshold_contour, fmt={threshold_value: contour_label})
 
         ax.set_xlabel(r"$P_2/P_1$")
@@ -422,9 +441,18 @@ class ttv_sim:
         # returning large MEGNO.
 
     # Run the MEGNO simulations for all parameter combinations
-    def run_megno(self, number_of_threads=None, *, use_cache=False, cache_path=None, overwrite_cache=False):
+    def run_megno(
+        self,
+        number_of_threads=None,
+        *,
+        use_cache=False,
+        cache_path=None,
+        overwrite_cache=False,
+    ):
         if use_cache and cache_path is None:
-            raise ValueError("cache_path is required when use_cache=True for run_megno()")
+            raise ValueError(
+                "cache_path is required when use_cache=True for run_megno()"
+            )
         if use_cache and cache_path is not None and not overwrite_cache:
             if os.path.exists(cache_path):
                 self.load_megno_grid_cache(cache_path)
@@ -446,7 +474,7 @@ class ttv_sim:
                     total=len(parameters),
                 )
             )
-            
+
         if use_cache and cache_path is not None:
             self.save_megno_grid_cache(cache_path)
 
@@ -493,7 +521,7 @@ class ttv_sim:
             epochs=self.epochs,
             ttv_mcmc=self.ttv_mcmc,
             ttv_err=self.ttv_err,
-            ttv_results=self.ttv_results
+            ttv_results=self.ttv_results,
         )
 
     def load_ttv_grid_cache(self, path):
@@ -505,7 +533,7 @@ class ttv_sim:
             companion_masses=self.mp2s,
             epochs=self.epochs,
             ttv_mcmc=self.ttv_mcmc,
-            ttv_err=self.ttv_err
+            ttv_err=self.ttv_err,
         )
         self.ttv_results = list(cached["ttv_results"])
         self.ttv_rebound = np.array(self.ttv_results)
@@ -518,16 +546,14 @@ class ttv_sim:
             path,
             period_ratios=self.rs,
             companion_masses=self.mp2s,
-            megno_results=self.megno_results
+            megno_results=self.megno_results,
         )
 
     def load_megno_grid_cache(self, path):
         """Load and validate a MEGNO grid from an npz cache file."""
         cached = cache.load_megno_grid(path)
         cache.validate_megno_grid_compatibility(
-            cached,
-            period_ratios=self.rs,
-            companion_masses=self.mp2s
+            cached, period_ratios=self.rs, companion_masses=self.mp2s
         )
         self.megno_results = list(cached["megno_results"])
 
@@ -548,28 +574,28 @@ class ttv_sim:
         """Save all available intermediate results to a directory."""
         run_dir = pathlib.Path(run_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
-        
+
         if self._has_nonempty_results("ttv_results"):
             self.save_ttv_grid_cache(run_dir / "ttv_grid.npz")
-        
+
         if self._has_nonempty_results("megno_results"):
             self.save_megno_grid_cache(run_dir / "megno_grid.npz")
-            
+
         if hasattr(self, "mass_thresholds"):
             self.save_scoring_summary(run_dir / "scoring_summary.npz")
 
     def load_checkpoint(self, run_dir):
         """Load all available intermediate results from a directory."""
         run_dir = pathlib.Path(run_dir)
-        
+
         ttv_path = run_dir / "ttv_grid.npz"
         if ttv_path.exists():
             self.load_ttv_grid_cache(ttv_path)
-            
+
         megno_path = run_dir / "megno_grid.npz"
         if megno_path.exists():
             self.load_megno_grid_cache(megno_path)
-            
+
         scoring_path = run_dir / "scoring_summary.npz"
         if scoring_path.exists():
             self.load_scoring_summary(scoring_path)

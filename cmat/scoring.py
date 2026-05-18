@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
 import hashlib
+from dataclasses import dataclass, fields, is_dataclass
 from typing import Protocol
 
 import emcee
@@ -12,6 +12,9 @@ import scipy.stats
 from scipy.special import logsumexp
 
 from .config import SUPPORTED_BAYESIAN_NUISANCE_PARAMETERS
+from .domain.mass_limits import first_rejected_masses
+from .domain.residuals import chi2_with_epoch_shift
+from .domain.residuals import rms as residual_rms
 
 DEFAULT_MASS_THRESHOLD_BACKEND = "chi2_rms"
 BAYESIAN_MASS_THRESHOLD_BACKEND = "bayesian"
@@ -21,17 +24,13 @@ INVALID_MODEL_LOG_SCORE = -1e300
 def get_chi2(ttv_rebound, epoch, ttv_mcmc, ttv_err):
     """Return the best chi-squared score over possible epoch alignments."""
 
-    rangea = range(epoch[-1] - epoch[0])
-    T = [ttv_rebound[np.array(epoch - epoch[0]) + a] for a in rangea]
-    chi2 = (((T - ttv_mcmc) ** 2) / ttv_err**2).sum(axis=1)
-    return chi2.min()
+    return chi2_with_epoch_shift(ttv_rebound, ttv_mcmc, ttv_err, epoch)
 
 
 def get_rms(ttv_rebound):
     """Return the root-mean-square amplitude of simulated TTV residuals."""
 
-    rms = np.sqrt(np.mean(ttv_rebound**2))
-    return rms
+    return residual_rms(ttv_rebound)
 
 
 @dataclass(frozen=True)
@@ -131,24 +130,27 @@ def _serialize_value(value):
 
 def _deserialize_bayesian(data: dict) -> BayesianScoringSummary:
     nuisance_params = {
-        k: BayesianPosteriorInterval(**v) for k, v in data["nuisance_parameters"].items()
+        k: BayesianPosteriorInterval(**v)
+        for k, v in data["nuisance_parameters"].items()
     }
-    
+
     posteriors = []
     for p in data["mass_limits"]["posterior_by_period_ratio"]:
-        posteriors.append(BayesianMassPosterior(
-            period_ratio=p["period_ratio"],
-            masses=np.array(p["masses"]),
-            log_evidence=np.array(p["log_evidence"]),
-            model_probabilities=np.array(p["model_probabilities"]),
-            cumulative_probability=np.array(p["cumulative_probability"]),
-            posterior_predictive_score=np.array(p["posterior_predictive_score"]),
-            best_mass=p["best_mass"],
-            credible_upper_bound=p["credible_upper_bound"],
-            rejection_upper_bound=p["rejection_upper_bound"],
-            upper_bound=p["upper_bound"],
-        ))
-        
+        posteriors.append(
+            BayesianMassPosterior(
+                period_ratio=p["period_ratio"],
+                masses=np.array(p["masses"]),
+                log_evidence=np.array(p["log_evidence"]),
+                model_probabilities=np.array(p["model_probabilities"]),
+                cumulative_probability=np.array(p["cumulative_probability"]),
+                posterior_predictive_score=np.array(p["posterior_predictive_score"]),
+                best_mass=p["best_mass"],
+                credible_upper_bound=p["credible_upper_bound"],
+                rejection_upper_bound=p["rejection_upper_bound"],
+                upper_bound=p["upper_bound"],
+            )
+        )
+
     mass_limits = BayesianMassLimitCurve(
         period_ratios=np.array(data["mass_limits"]["period_ratios"]),
         evaluated_masses=np.array(data["mass_limits"]["evaluated_masses"]),
@@ -158,17 +160,19 @@ def _deserialize_bayesian(data: dict) -> BayesianScoringSummary:
         units=data["mass_limits"]["units"],
         posterior_by_period_ratio=tuple(posteriors),
     )
-    
+
     diagnostics = None
     if data.get("diagnostics"):
         diagnostics = BayesianSamplerDiagnostics(**data["diagnostics"])
-        
+
     return BayesianScoringSummary(
         status=data["status"],
         contract_version=data["contract_version"],
         sampler=data["sampler"],
         credible_interval=data["credible_interval"],
-        rejection_log_bayes_factor_threshold=data["rejection_log_bayes_factor_threshold"],
+        rejection_log_bayes_factor_threshold=data[
+            "rejection_log_bayes_factor_threshold"
+        ],
         observed_transit_count=data["observed_transit_count"],
         sample_count=data["sample_count"],
         requested_sample_count=data["requested_sample_count"],
@@ -177,7 +181,7 @@ def _deserialize_bayesian(data: dict) -> BayesianScoringSummary:
         mass_limits=mass_limits,
         reference_solution=data["reference_solution"],
         diagnostics=diagnostics,
-        posterior_samples=data.get("posterior_samples")
+        posterior_samples=data.get("posterior_samples"),
     )
 
 
@@ -227,7 +231,7 @@ class MassThresholds:
         return payload
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MassThresholds":
+    def from_dict(cls, data: dict) -> MassThresholds:
         kwargs = {
             "chi2": np.array(data["chi2"]),
             "rms": np.array(data["rms"]),
@@ -235,17 +239,23 @@ class MassThresholds:
             "chi2_threshold": data.get("chi2_threshold"),
             "rms_threshold": data.get("rms_threshold"),
         }
-        
+
         if "chi2_degrees_of_freedom" in data:
             kwargs["chi2_degrees_of_freedom"] = data["chi2_degrees_of_freedom"]
-            
-        for k in ["chi2_surface", "reduced_chi2_surface", "relative_log_likelihood_surface", "period_ratios", "companion_masses"]:
+
+        for k in [
+            "chi2_surface",
+            "reduced_chi2_surface",
+            "relative_log_likelihood_surface",
+            "period_ratios",
+            "companion_masses",
+        ]:
             if k in data and data[k] is not None:
                 kwargs[k] = np.array(data[k])
-                
+
         if data.get("bayesian"):
             kwargs["bayesian"] = _deserialize_bayesian(data["bayesian"])
-            
+
         return cls(**kwargs)
 
 
@@ -267,17 +277,12 @@ class MassThresholdScorer(Protocol):
 def first_rejected_mass(score_2d, crit, *, valid_2d, period_ratios, companion_masses):
     """Return the first rejected companion mass for each period-ratio column."""
 
-    rejected_masses = []
-    for ratio_index, _ in enumerate(period_ratios):
-        for mass_index, companion_mass in enumerate(companion_masses):
-            if not valid_2d[mass_index, ratio_index]:
-                continue
-            if not np.isfinite(score_2d[mass_index, ratio_index]):
-                continue
-            if score_2d[mass_index, ratio_index] >= crit:
-                rejected_masses.append(companion_mass)
-                break
-    return np.array(rejected_masses)
+    return first_rejected_masses(
+        score_2d,
+        companion_masses,
+        crit,
+        valid_mask=valid_2d,
+    )
 
 
 class Chi2AndRmsMassThresholdScorer:
@@ -363,12 +368,16 @@ def _alignment_count(ttv_rebound: np.ndarray, epoch: np.ndarray) -> int:
     return alignment_count
 
 
-def _aligned_signal(ttv_rebound: np.ndarray, epoch: np.ndarray, shift_index: int) -> np.ndarray:
+def _aligned_signal(
+    ttv_rebound: np.ndarray, epoch: np.ndarray, shift_index: int
+) -> np.ndarray:
     indices = np.asarray(epoch - epoch[0] + shift_index, dtype=int)
     return np.asarray(ttv_rebound, dtype=float)[indices]
 
 
-def _credible_interval(samples: np.ndarray, credible_interval: float) -> BayesianPosteriorInterval:
+def _credible_interval(
+    samples: np.ndarray, credible_interval: float
+) -> BayesianPosteriorInterval:
     if samples.size == 0:
         return BayesianPosteriorInterval()
     alpha = (1.0 - credible_interval) / 2.0
@@ -460,9 +469,13 @@ class BayesianMassThresholdScorer:
         return tuple(self.config.nuisance_parameters)
 
     @staticmethod
-    def _representative_chain_rows(flat_chain: np.ndarray, sample_count: int) -> np.ndarray:
+    def _representative_chain_rows(
+        flat_chain: np.ndarray, sample_count: int
+    ) -> np.ndarray:
         if flat_chain.shape[0] < sample_count:
-            raise RuntimeError("Bayesian sampler did not retain the requested sample count")
+            raise RuntimeError(
+                "Bayesian sampler did not retain the requested sample count"
+            )
         if flat_chain.shape[0] == sample_count:
             return flat_chain
 
@@ -508,7 +521,9 @@ class BayesianMassThresholdScorer:
             weighted_residual_sum = float(np.sum(residual * inverse_sigma_squared))
             precision_sum = float(np.sum(inverse_sigma_squared))
             determinant_correction = 1.0 + offset_variance * precision_sum
-            quadratic -= (offset_variance * weighted_residual_sum**2) / determinant_correction
+            quadratic -= (
+                offset_variance * weighted_residual_sum**2
+            ) / determinant_correction
             logdet += float(np.log(determinant_correction))
 
         sample_count = residual.size
@@ -537,7 +552,11 @@ class BayesianMassThresholdScorer:
         else:
             shift_indices = (0,)
 
-        offset_sigma = prior_scales.offset_sigma if "baseline_offset" in nuisance_parameters else None
+        offset_sigma = (
+            prior_scales.offset_sigma
+            if "baseline_offset" in nuisance_parameters
+            else None
+        )
         use_jitter = "jitter" in nuisance_parameters
 
         jitter_log_nodes = np.array([0.0], dtype=float)
@@ -548,9 +567,9 @@ class BayesianMassThresholdScorer:
             quadrature_nodes, quadrature_weights = np.polynomial.legendre.leggauss(
                 self._JITTER_EVIDENCE_QUADRATURE_ORDER
             )
-            jitter_log_nodes = 0.5 * (log_jitter_max - log_jitter_min) * quadrature_nodes + 0.5 * (
-                log_jitter_max + log_jitter_min
-            )
+            jitter_log_nodes = 0.5 * (
+                log_jitter_max - log_jitter_min
+            ) * quadrature_nodes + 0.5 * (log_jitter_max + log_jitter_min)
             jitter_log_weights = np.log(0.5 * quadrature_weights)
 
         shift_log_evidences: list[float] = []
@@ -567,7 +586,9 @@ class BayesianMassThresholdScorer:
                 continue
 
             jitter_terms = []
-            for log_jitter, log_weight in zip(jitter_log_nodes, jitter_log_weights, strict=True):
+            for log_jitter, log_weight in zip(
+                jitter_log_nodes, jitter_log_weights, strict=True
+            ):
                 jitter_terms.append(
                     self._log_gaussian_likelihood(
                         residual,
@@ -579,7 +600,9 @@ class BayesianMassThresholdScorer:
             shift_log_evidences.append(float(logsumexp(jitter_terms)))
 
         if "epoch_shift" in nuisance_parameters:
-            return float(logsumexp(shift_log_evidences) - np.log(len(shift_log_evidences)))
+            return float(
+                logsumexp(shift_log_evidences) - np.log(len(shift_log_evidences))
+            )
         return shift_log_evidences[0]
 
     def _sample_model(
@@ -598,8 +621,7 @@ class BayesianMassThresholdScorer:
                 log_evidence=INVALID_MODEL_LOG_SCORE,
                 sample_count=0,
                 intervals={
-                    name: BayesianPosteriorInterval()
-                    for name in nuisance_parameters
+                    name: BayesianPosteriorInterval() for name in nuisance_parameters
                 },
                 mean_acceptance_fraction=0.0,
                 alignment_count=0,
@@ -775,7 +797,11 @@ class BayesianMassThresholdScorer:
             model_ttv = _aligned_signal(ttv_rebound, epoch, shift_index) + offset
             sigma = np.sqrt(observed_err**2 + jitter**2)
             pointwise_log_likelihood.append(
-                -0.5 * (((observed_ttv - model_ttv) / sigma) ** 2 + np.log(2.0 * np.pi * sigma**2))
+                -0.5
+                * (
+                    ((observed_ttv - model_ttv) / sigma) ** 2
+                    + np.log(2.0 * np.pi * sigma**2)
+                )
             )
         pointwise_log_likelihood = np.asarray(pointwise_log_likelihood)
         support_score = float(
@@ -784,7 +810,9 @@ class BayesianMassThresholdScorer:
         )
 
         intervals = {
-            name: _credible_interval(posterior_samples[name], self.config.credible_interval)
+            name: _credible_interval(
+                posterior_samples[name], self.config.credible_interval
+            )
             for name in nuisance_parameters
         }
 
@@ -825,7 +853,9 @@ class BayesianMassThresholdScorer:
 
         expected_grid_size = len(period_ratios) * len(companion_masses)
         if len(ttv_grid) != expected_grid_size:
-            raise ValueError("ttv_results must match the configured mass-ratio grid size")
+            raise ValueError(
+                "ttv_results must match the configured mass-ratio grid size"
+            )
 
         zero_signal = np.zeros_like(ttv_grid[0], dtype=float)
         null_result = self._sample_model(
@@ -848,7 +878,10 @@ class BayesianMassThresholdScorer:
                     observed_ttv=observed_ttv,
                     observed_err=observed_err,
                     nuisance_parameters=nuisance_parameters,
-                    seed_hint=(float(period_ratios[ratio_index]), float(companion_masses[mass_index])),
+                    seed_hint=(
+                        float(period_ratios[ratio_index]),
+                        float(companion_masses[mass_index]),
+                    ),
                 )
             )
 
@@ -875,7 +908,9 @@ class BayesianMassThresholdScorer:
             masses = np.concatenate(([0.0], companion_masses))
             cumulative_probability = np.cumsum(model_probabilities)
             best_model_index = int(np.argmax(model_probabilities))
-            best_mass = None if best_model_index == 0 else float(masses[best_model_index])
+            best_mass = (
+                None if best_model_index == 0 else float(masses[best_model_index])
+            )
             credible_upper_bound = _posterior_credible_upper_bound(
                 model_probabilities,
                 masses,
@@ -919,12 +954,21 @@ class BayesianMassThresholdScorer:
         diagnostics = BayesianSamplerDiagnostics(
             walker_count=max(12, 4 * len(nuisance_parameters)),
             step_count=self.config.warmup_draws
-            + int(np.ceil(self.config.posterior_sample_count / max(12, 4 * len(nuisance_parameters)))),
+            + int(
+                np.ceil(
+                    self.config.posterior_sample_count
+                    / max(12, 4 * len(nuisance_parameters))
+                )
+            ),
             mean_acceptance_fraction=float(
-                np.mean([null_result.mean_acceptance_fraction] + [result.mean_acceptance_fraction for result in model_results])
+                np.mean(
+                    [null_result.mean_acceptance_fraction]
+                    + [result.mean_acceptance_fraction for result in model_results]
+                )
             ),
             max_alignment_count=max(
-                [null_result.alignment_count] + [result.alignment_count for result in model_results]
+                [null_result.alignment_count]
+                + [result.alignment_count for result in model_results]
             ),
         )
 
@@ -966,7 +1010,9 @@ MASS_THRESHOLD_SCORER_REGISTRY = {
 }
 
 
-def make_mass_threshold_scorer(backend: str, *, bayesian_config=None) -> MassThresholdScorer:
+def make_mass_threshold_scorer(
+    backend: str, *, bayesian_config=None
+) -> MassThresholdScorer:
     """Build a supported mass-threshold scorer from a typed backend name."""
 
     if backend == BAYESIAN_MASS_THRESHOLD_BACKEND:

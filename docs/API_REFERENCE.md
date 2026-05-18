@@ -243,6 +243,17 @@ The adapter forwards:
 
 The cache helpers use `OutputConfig`'s derived cache paths so reduced runs and larger batch-style grids can reuse expensive intermediate products explicitly instead of recomputing them. TTV and MEGNO grids are stored as compressed `.npz` bundles keyed by the configured mass/ratio grid, while retained Bayesian posterior samples are stored as a focused JSON subset of the Bayesian scoring summary.
 
+## Pure domain helpers
+
+The `cmat.domain` package is the current import-safe boundary for new code that only needs deterministic math helpers and not the notebook-era scientific stack.
+
+- `cmat.domain.units` - unit constants and simple conversion helpers such as `earth_mass_to_solar_mass(...)`
+- `cmat.domain.timing` - linear-ephemeris helpers such as `calculate_epochs(...)` and `timing_residuals(...)`
+- `cmat.domain.residuals` - pure chi2/RMS scoring helpers, including epoch-shift alignment
+- `cmat.domain.mass_limits` - first-rejected-mass extraction from 2D score surfaces
+
+These modules are intended for tests, adapters, and future rebuild code that should stay import-safe without eagerly importing PyTransit, REBOUND, Matplotlib, or remote-data clients.
+
 ### `run_simulator_adapter(...)` contract
 
 `run_simulator_adapter(...)` is the Stage 5 generic workflow bridge. It leaves the astronomy-specific TTV implementation untouched, but lets another physical system expose the same high-level shape through a small adapter object.
