@@ -64,6 +64,7 @@ Functions:
 
 import os
 import json
+import pickle
 import pathlib
 import glob
 import warnings
@@ -96,6 +97,7 @@ RJ_TO_RS = 0.102792236
 RS_TO_AU = 0.00464913034
 DAY_TO_SEC = 24 * 60 * 60
 FITLPF_PARAMETER_CACHE_SCHEMA_VERSION = "1"
+FITLPF_SINGLES_CACHE_SCHEMA_VERSION = "2"
 
 
 def get_id(planet_name: str):
@@ -558,13 +560,48 @@ class Fitlpf:
                     UserWarning,
                     stacklevel=2,
                 )
-                with open(cache_path, "rb") as f:
-                    cached_data = dill.load(f)
-                self.singles = cached_data["singles"]
-                self.post_samples = cached_data["post_samples"]
-                self.tcs = cached_data["tcs"]
-                self.epochs = cached_data["epochs"]
-                return
+                try:
+                    with open(cache_path, "rb") as f:
+                        cached_data = dill.load(f)
+                    if not isinstance(cached_data, dict):
+                        raise TypeError(
+                            "fit_singles cache payload must be a dictionary"
+                        )
+                    schema_version = cached_data.get("cache_schema_version")
+                    if schema_version != FITLPF_SINGLES_CACHE_SCHEMA_VERSION:
+                        raise ValueError(
+                            "fit_singles cache schema mismatch: "
+                            f"expected {FITLPF_SINGLES_CACHE_SCHEMA_VERSION!r}, "
+                            f"found {schema_version!r}"
+                        )
+                    cached_planet_name = cached_data.get("planet_name")
+                    if cached_planet_name != self.planet_name:
+                        raise ValueError(
+                            "fit_singles cache planet_name mismatch: "
+                            f"expected {self.planet_name!r}, "
+                            f"found {cached_planet_name!r}"
+                        )
+                    self.post_samples = cached_data["post_samples"]
+                    self.tcs = cached_data["tcs"]
+                    self.epochs = cached_data["epochs"]
+                    self.singles = None
+                    return
+                except (
+                    AttributeError,
+                    EOFError,
+                    ImportError,
+                    ModuleNotFoundError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                    pickle.UnpicklingError,
+                ) as exc:
+                    warnings.warn(
+                        "Ignoring fit_singles cache at "
+                        f"{cache_path!r} and recomputing fits: {exc}",
+                        UserWarning,
+                        stacklevel=2,
+                    )
 
         # self.fit_single_v = np.vectorize(self.fit_single)
         # self.singles = self.fit_single_v(np.arange(len(self.lpf.times)))
@@ -586,12 +623,16 @@ class Fitlpf:
         if use_cache and cache_path:
             pathlib.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
             with open(cache_path, "wb") as f:
-                dill.dump({
-                    "singles": self.singles,
-                    "post_samples": self.post_samples,
-                    "tcs": self.tcs,
-                    "epochs": self.epochs
-                }, f)
+                dill.dump(
+                    {
+                        "cache_schema_version": FITLPF_SINGLES_CACHE_SCHEMA_VERSION,
+                        "planet_name": self.planet_name,
+                        "post_samples": self.post_samples,
+                        "tcs": self.tcs,
+                        "epochs": self.epochs,
+                    },
+                    f,
+                )
 
     def get_posterior_samples(self):
         """
