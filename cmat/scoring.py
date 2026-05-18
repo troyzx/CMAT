@@ -13,7 +13,8 @@ from scipy.special import logsumexp
 
 from .config import SUPPORTED_BAYESIAN_NUISANCE_PARAMETERS
 from .domain.mass_limits import first_rejected_masses
-from .domain.residuals import chi2_with_epoch_shift, rms
+from .domain.residuals import chi2_with_epoch_shift
+from .domain.residuals import rms as residual_rms
 
 DEFAULT_MASS_THRESHOLD_BACKEND = "chi2_rms"
 BAYESIAN_MASS_THRESHOLD_BACKEND = "bayesian"
@@ -29,7 +30,7 @@ def get_chi2(ttv_rebound, epoch, ttv_mcmc, ttv_err):
 def get_rms(ttv_rebound):
     """Return the root-mean-square amplitude of simulated TTV residuals."""
 
-    return rms(ttv_rebound)
+    return residual_rms(ttv_rebound)
 
 
 @dataclass(frozen=True)
