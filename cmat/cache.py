@@ -93,7 +93,10 @@ def validate_ttv_grid_compatibility(cached, *, period_ratios, companion_masses, 
         raise ValueError("Cache ttv_mcmc mismatch")
     if not np.allclose(cached["ttv_err"], ttv_err):
         raise ValueError("Cache ttv_err mismatch")
-    if len(cached["ttv_results"]) != len(companion_masses) * len(period_ratios):
+    ttv_results = np.asarray(cached["ttv_results"], dtype=float)
+    if ttv_results.ndim != 2:
+        raise ValueError("Cache ttv_results dimensionality mismatch: expected 2-D")
+    if ttv_results.shape[0] != len(companion_masses) * len(period_ratios):
         raise ValueError("Cache ttv_results length mismatch")
 
 
@@ -102,5 +105,8 @@ def validate_megno_grid_compatibility(cached, *, period_ratios, companion_masses
         raise ValueError("Cache period_ratios mismatch")
     if not np.allclose(cached["companion_masses"], companion_masses):
         raise ValueError("Cache companion_masses mismatch")
-    if len(cached["megno_results"]) != len(companion_masses) * len(period_ratios):
+    megno_results = np.asarray(cached["megno_results"], dtype=float)
+    if megno_results.ndim != 1:
+        raise ValueError("Cache megno_results dimensionality mismatch: expected 1-D")
+    if megno_results.size != len(companion_masses) * len(period_ratios):
         raise ValueError("Cache megno_results length mismatch")

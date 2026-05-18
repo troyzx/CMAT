@@ -164,6 +164,8 @@ class ttv_sim:
         return ttv_rebound
 
     def get_ttv_rebound_all(self, number_of_thread=None, *, use_cache=False, cache_path=None, overwrite_cache=False):
+        if use_cache and cache_path is None:
+            raise ValueError("cache_path is required when use_cache=True for get_ttv_rebound_all()")
         if use_cache and cache_path is not None and not overwrite_cache:
             if os.path.exists(cache_path):
                 self.load_ttv_grid_cache(cache_path)
@@ -421,6 +423,8 @@ class ttv_sim:
 
     # Run the MEGNO simulations for all parameter combinations
     def run_megno(self, number_of_threads=None, *, use_cache=False, cache_path=None, overwrite_cache=False):
+        if use_cache and cache_path is None:
+            raise ValueError("cache_path is required when use_cache=True for run_megno()")
         if use_cache and cache_path is not None and not overwrite_cache:
             if os.path.exists(cache_path):
                 self.load_megno_grid_cache(cache_path)
@@ -480,7 +484,7 @@ class ttv_sim:
 
     def save_ttv_grid_cache(self, path):
         """Save the computed TTV grid to an npz cache file."""
-        if not self.ttv_results:
+        if not self._has_nonempty_results("ttv_results"):
             raise ValueError("No TTV results to save. Run get_ttv_rebound_all() first.")
         cache.save_ttv_grid(
             path,
@@ -508,7 +512,7 @@ class ttv_sim:
 
     def save_megno_grid_cache(self, path):
         """Save the computed MEGNO grid to an npz cache file."""
-        if not hasattr(self, "megno_results") or not self.megno_results:
+        if not self._has_nonempty_results("megno_results"):
             raise ValueError("No MEGNO results to save. Run run_megno() first.")
         cache.save_megno_grid(
             path,
@@ -545,10 +549,10 @@ class ttv_sim:
         run_dir = pathlib.Path(run_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         
-        if self.ttv_results:
+        if self._has_nonempty_results("ttv_results"):
             self.save_ttv_grid_cache(run_dir / "ttv_grid.npz")
         
-        if hasattr(self, "megno_results") and self.megno_results:
+        if self._has_nonempty_results("megno_results"):
             self.save_megno_grid_cache(run_dir / "megno_grid.npz")
             
         if hasattr(self, "mass_thresholds"):
@@ -569,6 +573,17 @@ class ttv_sim:
         scoring_path = run_dir / "scoring_summary.npz"
         if scoring_path.exists():
             self.load_scoring_summary(scoring_path)
+
+    def _has_nonempty_results(self, attribute_name):
+        if not hasattr(self, attribute_name):
+            return False
+        results = getattr(self, attribute_name)
+        if results is None:
+            return False
+        try:
+            return len(results) > 0
+        except TypeError:
+            return False
 
 
 TTVSimulation = ttv_sim

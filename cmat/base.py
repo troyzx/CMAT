@@ -66,6 +66,7 @@ import os
 import json
 import pathlib
 import glob
+import warnings
 import numpy as np
 import requests
 import matplotlib.pyplot as plt
@@ -94,6 +95,7 @@ ME_TO_MS = 3.0e-6
 RJ_TO_RS = 0.102792236
 RS_TO_AU = 0.00464913034
 DAY_TO_SEC = 24 * 60 * 60
+FITLPF_PARAMETER_CACHE_SCHEMA_VERSION = "1"
 
 
 def get_id(planet_name: str):
@@ -317,6 +319,17 @@ class Fitlpf:
             if os.path.exists(cache_path):
                 with open(cache_path, "r") as f:
                     cached_data = json.load(f)
+                schema_version = cached_data.get("cache_schema_version")
+                if schema_version != FITLPF_PARAMETER_CACHE_SCHEMA_VERSION:
+                    raise ValueError(
+                        f"Unsupported parameter cache schema version: {schema_version!r}"
+                    )
+                cached_planet_name = cached_data.get("planet_name")
+                if cached_planet_name != self.planet_name:
+                    raise ValueError(
+                        "Parameter cache planet_name mismatch: "
+                        f"expected {self.planet_name!r}, found {cached_planet_name!r}"
+                    )
                 self.ticid = cached_data["ticid"]
                 self.prop = cached_data["prop"]
                 self._apply_prop()
@@ -334,8 +347,10 @@ class Fitlpf:
             pathlib.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
             with open(cache_path, "w") as f:
                 json.dump({
+                    "cache_schema_version": FITLPF_PARAMETER_CACHE_SCHEMA_VERSION,
+                    "planet_name": self.planet_name,
                     "ticid": self.ticid,
-                    "prop": self.prop
+                    "prop": self.prop,
                 }, f, indent=2)
 
     def print_parameters(self):
@@ -526,6 +541,10 @@ class Fitlpf:
             cache_path (str): Path to the cache file.
             overwrite_cache (bool): If True, recompute and overwrite cache.
 
+        Warning:
+            The dill cache used by this method is a trusted local cache only.
+            Do not load it from untrusted sources.
+
         Returns:
             None
         """
@@ -533,6 +552,12 @@ class Fitlpf:
 
         if use_cache and cache_path and not overwrite_cache:
             if os.path.exists(cache_path):
+                warnings.warn(
+                    "Fitlpf.fit_singles() uses dill for a trusted local cache only. "
+                    "Do not load dill cache files from untrusted sources.",
+                    UserWarning,
+                    stacklevel=2,
+                )
                 with open(cache_path, "rb") as f:
                     cached_data = dill.load(f)
                 self.singles = cached_data["singles"]

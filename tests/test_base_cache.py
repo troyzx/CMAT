@@ -1,25 +1,20 @@
+"""Unit tests for Fitlpf caching methods (get_parameter, download_data)."""
+
+import importlib
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-# Patch llvmlite before importing cmat.base to avoid RuntimeError
-# on environments where llvmlite.binding.initialize() is deprecated.
 try:
-    import llvmlite.binding
-    llvmlite.binding.initialize = lambda *a, **kw: None
-except ImportError:
-    pass
+    from cmat.base import Fitlpf
+    _HAS_BASE = True
+except Exception:
+    _HAS_BASE = False
 
-# Mock out scipy.signal to avoid import errors from arviz/pytransit
-# on environments with incompatible scipy versions.
-sys.modules.setdefault("scipy.signal", MagicMock())
-
-from cmat.base import Fitlpf
-
+_SKIP_REASON = "cmat.base requires pytransit/numba stack unavailable in this environment"
 
 _MOCK_PROP = [{
     "transit_time": 1000.0,
@@ -38,12 +33,19 @@ _MOCK_PROP = [{
 }]
 
 
+@unittest.skipUnless(_HAS_BASE, _SKIP_REASON)
 class GetParameterCacheTests(unittest.TestCase):
     """Tests for Fitlpf.get_parameter cache logic."""
 
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
         self.cache_file = os.path.join(self._tmpdir, "planet_params.json")
+
+    def test_import_path_uses_real_scipy_signal_module(self):
+        scipy_signal = importlib.import_module("scipy.signal")
+
+        self.assertTrue(hasattr(scipy_signal, "windows"))
+        self.assertIs(Fitlpf, importlib.import_module("cmat.base").Fitlpf)
 
     @patch("cmat.base.get_prop", return_value=_MOCK_PROP)
     @patch("cmat.base.get_id", return_value=12345)
@@ -57,6 +59,8 @@ class GetParameterCacheTests(unittest.TestCase):
 
         with open(self.cache_file, "r") as f:
             data = json.load(f)
+        self.assertEqual(data["cache_schema_version"], "1")
+        self.assertEqual(data["planet_name"], "TestPlanet")
         self.assertEqual(data["ticid"], 12345)
 
     @patch("cmat.base.get_prop", return_value=_MOCK_PROP)
@@ -82,7 +86,23 @@ class GetParameterCacheTests(unittest.TestCase):
         self.assertAlmostEqual(planet2.zero_epoch.n, 1000.0 + 2.4e6 + 0.5)
         self.assertAlmostEqual(planet2.zero_epoch.s, 0.02)
 
+    @patch("cmat.base.get_prop", return_value=_MOCK_PROP)
+    @patch("cmat.base.get_id", return_value=12345)
+    def test_planet_name_mismatch_raises_clear_error(self, mock_get_id, mock_get_prop):
+        planet = Fitlpf("TestPlanet")
+        planet.get_parameter(use_cache=True, cache_path=self.cache_file)
 
+        with open(self.cache_file, "r") as f:
+            cached_data = json.load(f)
+        cached_data["planet_name"] = "OtherPlanet"
+        with open(self.cache_file, "w") as f:
+            json.dump(cached_data, f, indent=2)
+
+        with self.assertRaisesRegex(ValueError, "planet_name mismatch"):
+            Fitlpf("TestPlanet").get_parameter(use_cache=True, cache_path=self.cache_file)
+
+
+@unittest.skipUnless(_HAS_BASE, _SKIP_REASON)
 class DownloadDataCacheTests(unittest.TestCase):
     """Tests for Fitlpf.download_data cache skip logic."""
 

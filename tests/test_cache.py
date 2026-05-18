@@ -70,6 +70,10 @@ class CacheTests(unittest.TestCase):
                 
             np.testing.assert_allclose(sim2.ttv_rebound, self.sim.ttv_rebound)
 
+    def test_get_ttv_rebound_all_requires_cache_path_when_cache_enabled(self):
+        with self.assertRaisesRegex(ValueError, "cache_path is required"):
+            self.sim.get_ttv_rebound_all(use_cache=True)
+
     def test_get_ttv_rebound_all_with_cache_saves_after_computing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "ttv.npz")
@@ -149,6 +153,10 @@ class CacheTests(unittest.TestCase):
             )
             sim2.load_megno_grid_cache(path)
             self.assertEqual(sim2.megno_results, self.sim.megno_results)
+
+    def test_run_megno_requires_cache_path_when_cache_enabled(self):
+        with self.assertRaisesRegex(ValueError, "cache_path is required"):
+            self.sim.run_megno(use_cache=True)
 
     def test_run_megno_with_cache_loads_without_recomputing(self):
         self.sim.megno_results = [1.0, 2.0, 3.0, 4.0]
@@ -286,6 +294,19 @@ class CacheTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "schema version"):
                 self.sim.load_ttv_grid_cache(path)
 
+    def test_invalid_ttv_results_dimensionality_raises(self):
+        self.sim.ttv_results = [np.ones(4) for _ in range(4)]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "ttv.npz")
+            self.sim.save_ttv_grid_cache(path)
+
+            data = dict(np.load(path))
+            data["ttv_results"] = np.array([0.0, 1.0, 2.0, 3.0])
+            np.savez_compressed(path, **data)
+
+            with self.assertRaisesRegex(ValueError, "ttv_results dimensionality mismatch"):
+                self.sim.load_ttv_grid_cache(path)
+
     def test_save_and_load_checkpoint_round_trips_all_results(self):
         self.sim.ttv_results = [np.ones(4) for _ in range(4)]
         self.sim.megno_results = [1.0, 2.0, 3.0, 4.0]
@@ -310,6 +331,25 @@ class CacheTests(unittest.TestCase):
             self.assertIsNotNone(sim2.ttv_results)
             self.assertIsNotNone(sim2.megno_results)
             self.assertIsNotNone(sim2.mass_thresholds)
+
+    def test_save_checkpoint_accepts_numpy_array_ttv_results(self):
+        self.sim.ttv_results = np.ones((4, 4))
+        self.sim.ttv_rebound = np.array(self.sim.ttv_results)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.sim.save_checkpoint(tmpdir)
+
+            sim2 = TTVSimulation(
+                epochs=self.sim.epochs,
+                ttv_mcmc=self.sim.ttv_mcmc,
+                ttv_err=self.sim.ttv_err,
+                rs=self.sim.rs,
+                mp2s=self.sim.mp2s,
+                prop=self.prop,
+            )
+            sim2.load_checkpoint(tmpdir)
+
+            np.testing.assert_allclose(sim2.ttv_rebound, self.sim.ttv_rebound)
 
     def test_overwrite_cache_forces_recomputation(self):
         self.sim.ttv_results = [np.ones(4) for _ in range(4)]

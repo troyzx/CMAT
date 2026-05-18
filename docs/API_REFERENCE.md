@@ -373,6 +373,7 @@ Common call sequence in the current notebook-era workflow:
 6. `plot_tcs()` / `plot_ttv_residuals()` (`plot_ttv_re()` remains available as the legacy alias)
 
 Operational note: this is the most environment-sensitive surface because it depends on the PyTransit stack.
+Security note: `fit_singles(use_cache=True, cache_path=...)` uses a local `dill` cache. Treat that cache as trusted local state only; do not load dill cache files from untrusted sources.
 
 ### `cmat.TTVSimulation`
 
