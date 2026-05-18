@@ -77,6 +77,8 @@ import cmat
 
 For new code, prefer `cmat.TransitFitWorkflow` and `cmat.TTVSimulation`. The older `cmat.Fitlpf` and `cmat.ttv_sim` names remain available for compatibility.
 
+The current industry rebuild also exposes import-safe pure helpers under `cmat.domain` for units, timing, residual scoring, and mass-limit extraction. Those functions are intended for new tests and adapters while the legacy notebook-compatible APIs remain unchanged.
+
 ## Example Notebook
 
 Run the included full notebook:

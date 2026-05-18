@@ -56,5 +56,48 @@ Homepage = "https://github.com/troyzx/CMAT"
 Repository = "https://github.com/troyzx/CMAT"
 DOI = "https://doi.org/10.5281/zenodo.13739646"
 
+[project.optional-dependencies]
+dev = [
+    "build>=1,<2",
+    "coverage>=7,<8",
+    "ruff>=0.6,<1",
+]
+
 [tool.setuptools.packages.find]
 include = ["cmat*"]
+
+[tool.coverage.run]
+source = ["cmat"]
+omit = [
+    "cmat/base.py",
+    "cmat/constant.py",
+    "cmat/singlefit.py",
+    "cmat/utils.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 70
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+extend-exclude = [
+    "cmat/base.py",
+    "cmat/cache.py",
+    "cmat/constant.py",
+    "cmat/singlefit.py",
+    "cmat/utils.py",
+    "tests/test_base_cache.py",
+    "tests/test_cache.py",
+    "tests/test_config.py",
+    "tests/test_notebook_smoke.py",
+    "tests/test_ttv_rebound.py",
+    "tests/test_ttv_residuals.py",
+    "tests/test_ttv_scoring.py",
+    "tests/test_wasp44_baseline_data.py",
+    "tests/test_workflow.py",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]

@@ -9,23 +9,23 @@ implementation.
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
 import json
-from multiprocessing import get_context
 import os
-from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
 import platform
 import subprocess
 import sys
-from typing import Any, Protocol, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
+from multiprocessing import get_context
+from pathlib import Path
+from typing import Any, Protocol
 
 import numpy as np
 from tqdm.auto import tqdm
 
 from .config import ExecutionConfig, RunConfig, TargetConfig
-
 
 DEFAULT_PROVENANCE_DISTRIBUTIONS = (
     "CMAT-astro",
@@ -155,7 +155,9 @@ def _normalize_parameter_grid(
     expected_keys: tuple[str, ...] | None = None
     for index, parameters in enumerate(parameter_grid):
         if not isinstance(parameters, dict) or not parameters:
-            raise ValueError("adapter parameter_grid() must return non-empty dictionaries")
+            raise ValueError(
+                "adapter parameter_grid() must return non-empty dictionaries"
+            )
         normalized_parameters: dict[str, float] = {}
         for name, value in parameters.items():
             if not isinstance(name, str):
@@ -251,7 +253,9 @@ def run_simulator_adapter(
 
     parameter_grid = _normalize_parameter_grid(adapter.parameter_grid())
     if execution.worker_count == 1:
-        iterator = (_score_adapter(adapter, parameters) for parameters in parameter_grid)
+        iterator = (
+            _score_adapter(adapter, parameters) for parameters in parameter_grid
+        )
     else:
         context = get_context(execution.start_method)
         with context.Pool(
@@ -319,7 +323,9 @@ def _write_simulator_adapter_figure(
 
     if len(parameter_names) == 1:
         x_name = parameter_names[0]
-        x = np.asarray([parameters[x_name] for parameters in result.parameter_grid], dtype=float)
+        x = np.asarray(
+            [parameters[x_name] for parameters in result.parameter_grid], dtype=float
+        )
         ax.plot(x, result.scores, marker="o", color="tab:blue")
         accepted_mask = np.asarray(result.accepted, dtype=bool)
         if np.any(accepted_mask):
@@ -334,8 +340,12 @@ def _write_simulator_adapter_figure(
         ax.set_ylabel("score")
     else:
         x_name, y_name = parameter_names
-        x = np.asarray([parameters[x_name] for parameters in result.parameter_grid], dtype=float)
-        y = np.asarray([parameters[y_name] for parameters in result.parameter_grid], dtype=float)
+        x = np.asarray(
+            [parameters[x_name] for parameters in result.parameter_grid], dtype=float
+        )
+        y = np.asarray(
+            [parameters[y_name] for parameters in result.parameter_grid], dtype=float
+        )
         scatter = ax.scatter(x, y, c=result.scores, cmap="viridis", s=120)
         accepted_mask = np.asarray(result.accepted, dtype=bool)
         if np.any(accepted_mask):
@@ -380,7 +390,9 @@ def write_simulator_adapter_portfolio(
     summary_path = output_dir / "summary.json"
     table_path = tables_dir / "grid_scores.csv"
 
-    parameter_names = tuple(result.parameter_grid[0].keys()) if result.parameter_grid else ()
+    parameter_names = (
+        tuple(result.parameter_grid[0].keys()) if result.parameter_grid else ()
+    )
     candidate_count = len(result.parameter_grid)
     accepted_count = int(np.sum(result.accepted))
     best_index = int(np.argmin(result.scores))
@@ -483,7 +495,9 @@ def simulator_adapter_manifest(
     if execution is not None and not isinstance(execution, ExecutionConfig):
         raise TypeError("execution must be an ExecutionConfig or None")
 
-    parameter_names = tuple(result.parameter_grid[0].keys()) if result.parameter_grid else ()
+    parameter_names = (
+        tuple(result.parameter_grid[0].keys()) if result.parameter_grid else ()
+    )
     accepted_count = int(np.sum(result.accepted))
     best_index = int(np.argmin(result.scores))
 
@@ -533,7 +547,9 @@ def write_simulator_adapter_manifest(
             else dependency_versions
         ),
         notes=notes,
-        code_version=provenance_code_version() if code_version is None else code_version,
+        code_version=provenance_code_version()
+        if code_version is None
+        else code_version,
         runtime=provenance_runtime() if runtime is None else runtime,
     )
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -654,7 +670,9 @@ def write_workflow_manifest(
         ),
         notes=notes,
         scoring_summary=scoring_summary,
-        code_version=provenance_code_version() if code_version is None else code_version,
+        code_version=provenance_code_version()
+        if code_version is None
+        else code_version,
         runtime=provenance_runtime() if runtime is None else runtime,
     )
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
@@ -771,7 +789,9 @@ def _normalize_scoring_summary(scoring_summary: Any) -> dict[str, Any]:
     if hasattr(scoring_summary, "to_dict"):
         scoring_summary = scoring_summary.to_dict()
     if not isinstance(scoring_summary, dict):
-        raise TypeError("scoring_summary must be a dict-like object or expose to_dict()")
+        raise TypeError(
+            "scoring_summary must be a dict-like object or expose to_dict()"
+        )
     return scoring_summary
 
 
@@ -818,10 +838,13 @@ def write_posterior_samples_cache(
 ) -> Path:
     """Persist retained Bayesian posterior samples for reuse."""
 
-    cache_path = _resolve_cache_path(config.output.posterior_samples_cache_path, cache_path)
+    cache_path = _resolve_cache_path(
+        config.output.posterior_samples_cache_path, cache_path
+    )
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(
-        json.dumps(_bayesian_cache_payload(scoring_summary), indent=2, sort_keys=True) + "\n",
+        json.dumps(_bayesian_cache_payload(scoring_summary), indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
     return cache_path
@@ -834,7 +857,9 @@ def load_posterior_samples_cache(
 ) -> dict[str, Any]:
     """Load retained Bayesian posterior samples written by `write_posterior_samples_cache(...)`."""
 
-    cache_path = _resolve_cache_path(config.output.posterior_samples_cache_path, cache_path)
+    cache_path = _resolve_cache_path(
+        config.output.posterior_samples_cache_path, cache_path
+    )
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
     payload["posterior_samples"] = {
         name: np.asarray(values, dtype=float)
