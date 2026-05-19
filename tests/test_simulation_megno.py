@@ -5,7 +5,7 @@ from unittest import mock
 
 import numpy as np
 
-from cmat.simulation.megno import calculate_megno
+from cmat.simulation.megno import _calculate_megno_value, calculate_megno
 from cmat.ttv_sim import TTVSimulation
 
 
@@ -41,6 +41,30 @@ class SimulationMegnoTests(unittest.TestCase):
         )
 
         self.assertLess(abs(legacy - helper), 0.02)
+
+    def test_calculate_megno_value_uses_calculate_megno_when_available(self):
+        class FakeSimulation:
+            def calculate_megno(self):
+                return 2.5
+
+        self.assertEqual(_calculate_megno_value(FakeSimulation()), 2.5)
+
+    def test_calculate_megno_value_uses_megno_when_available(self):
+        class FakeSimulation:
+            def megno(self):
+                return 3.5
+
+        self.assertEqual(_calculate_megno_value(FakeSimulation()), 3.5)
+
+    def test_calculate_megno_value_raises_when_no_megno_api_exists(self):
+        class FakeSimulation:
+            pass
+
+        with self.assertRaisesRegex(
+            AttributeError,
+            "REBOUND Simulation does not expose calculate_megno\\(\\) or megno\\(\\)",
+        ):
+            _calculate_megno_value(FakeSimulation())
 
     def test_run_megno_supports_legacy_thread_override(self):
         sim = TTVSimulation(

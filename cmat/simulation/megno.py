@@ -14,6 +14,16 @@ from ..domain.units import ME_TO_MS, MJ_TO_MS
 from .execution import build_mass_ratio_parameter_grid, maybe_run_in_pool
 
 
+def _calculate_megno_value(sim):
+    if hasattr(sim, "calculate_megno"):
+        return sim.calculate_megno()
+    if hasattr(sim, "megno"):
+        return sim.megno()
+    raise AttributeError(
+        "REBOUND Simulation does not expose calculate_megno() or megno()"
+    )
+
+
 def calculate_megno(*, parameters, prop, dt, runtime):
     """Calculate MEGNO for one period-ratio/mass pair."""
 
@@ -37,7 +47,7 @@ def calculate_megno(*, parameters, prop, dt, runtime):
     sim.exit_max_distance = 20.0
     try:
         sim.integrate(runtime * period_min, exact_finish_time=0)
-        return sim.calculate_megno()
+        return _calculate_megno_value(sim)
     except rebound.Escape:
         return 10.0
 
