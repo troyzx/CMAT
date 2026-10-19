@@ -56,7 +56,7 @@ class ttv_sim:
         self.ttv_mcmc = ttv_mcmc  # The TTVs obtained from MCMC fitting
         self.ttv_err = ttv_err  # The errors on the MCMC TTVs
         self.rs = rs  # The radii of the planets
-        self.mp2s = mp2s  # The masses of the planets
+        self.mp2s = mp2s  # Hypothetical companion masses in Earth masses (M_earth)
         self.prop = prop  # The orbital properties of the planets
         self.N = N  # The number of TTV simulations to perform
         self.crit = scipy.stats.chi2.ppf(0.997, len(ttv_mcmc))
@@ -221,7 +221,7 @@ class ttv_sim:
         prop = self.prop
         ms = prop[0]["Ms"]
         mp1 = prop[0]["Mp"]
-        a1 = prop[0]["Ms"]
+        a1 = prop[0]["orbital_distance"]
         a2 = a1 * r ** (2 / 3)
 
         sim = rebound.Simulation()
@@ -271,13 +271,13 @@ class ttv_sim:
     def plot_megno(self):
         rs = self.rs
         mp2s = self.mp2s
-        results2d = np.array(self.megno_results).reshape(len(rs), len(mp2s))
+        results2d = np.array(self.megno_results).reshape(len(mp2s), len(rs))
         fig, ax = plt.subplots(figsize=(7, 5))
         extent = [min(rs), max(rs), min(mp2s), max(mp2s)]
         ax.set_xlim(extent[0], extent[1])
         ax.set_xlabel("$P_2/P_1$")
         ax.set_ylim(extent[2], extent[3])
-        ax.set_ylabel("Mass [$M_j$]")
+        ax.set_ylabel(r"Mass [$M_{\oplus}$]")
         im = ax.imshow(
             results2d,
             interpolation="none",
@@ -295,4 +295,4 @@ class ttv_sim:
         new_ticks = [1.5, 2, 2.5, 3, 3.3, 3.5, 3.8, 4]
         plt.xticks(new_ticks)
         plt.xlabel(r"$P_2/P_1$")
-        plt.ylabel(r"$M_2$ [$M_j$]")
+        plt.ylabel(r"$M_2$ [$M_{\oplus}$]")

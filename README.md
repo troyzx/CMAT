@@ -58,6 +58,8 @@ jupyter notebook example.ipynb
 
 The notebook uses the provided WASP-44 b data to demonstrate target setup, TESS data access, transit fitting, TTV residual construction, companion-mass grid simulation, and MEGNO visualization.
 
+**Companion mass units:** `ttv_sim(..., mp2s=...)` expects Earth masses ($M_\oplus$), and both `get_m_crit()` mass-limit outputs use Earth masses. The known transiting planet mass in `prop[0]["Mp"]` is in Jupiter masses ($M_J$). For output in Jupiter masses, divide companion mass values by approximately 317.8. Earlier notebook plots mislabeled Earth masses as Jupiter masses; rerun the corrected notebook to regenerate those plots. The MEGNO routine previously used stellar mass in place of the orbital semi-major axis, so stability maps generated with the original code should be recomputed and independently checked.
+
 ## Workflow: TESS Light Curves to Upper Mass Constraints
 
 1. **Select a target.** Start with a known transiting planet and retrieve its system metadata, including stellar mass, planet mass, orbital period, radius, and reference transit time.
