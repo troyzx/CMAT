@@ -1,0 +1,13 @@
+{
+  "purpose": "illustrative values only; this file is NOT an approved science target",
+  "input_format": "epoch,t_mid_bjd_tdb,sigma_sec,instrument,reference,timing_group",
+  "target_id": "SYNTHETIC_ONLY",
+  "star_mass_msun": 1.0,
+  "inner_mass_mjup": 1.0,
+  "outer_mass_mjup": 1.0,
+  "outer_period_day": 100.0,
+  "outer_phase_deg": 90.0,
+  "ephemeris_mode": "linear",
+  "max_epoch_span": 3000,
+  "assumptions": ["circular", "coplanar", "edge_on", "one_outer_companion"]
+}
